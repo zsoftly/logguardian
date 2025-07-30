@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ConfigEvent represents AWS Config compliance evaluation event
 type ConfigEvent struct {
@@ -129,4 +132,13 @@ type BatchRemediationResult struct {
 	Results            []RemediationResult `json:"results"`
 	ProcessingDuration time.Duration       `json:"processingDuration"`
 	RateLimitHits      int                 `json:"rateLimitHits"`
+}
+
+// LambdaRequest represents the unified request format for the Lambda
+type LambdaRequest struct {
+	Type           string          `json:"type"`                     // "config-event" or "config-rule-evaluation"
+	ConfigEvent    json.RawMessage `json:"configEvent,omitempty"`    // Contains Config event payload for config-event type requests
+	ConfigRuleName string          `json:"configRuleName,omitempty"` // For rule evaluation requests
+	Region         string          `json:"region,omitempty"`         // For rule evaluation requests
+	BatchSize      int             `json:"batchSize,omitempty"`      // For rule evaluation requests
 }

@@ -14,15 +14,6 @@ import (
 	"github.com/zsoftly/logguardian/internal/types"
 )
 
-// LambdaRequest represents the unified request format for the Lambda
-type LambdaRequest struct {
-	Type           string          `json:"type"`                     // "config-event" or "config-rule-evaluation"
-	ConfigEvent    json.RawMessage `json:"configEvent,omitempty"`    // For individual Config events
-	ConfigRuleName string          `json:"configRuleName,omitempty"` // For rule evaluation requests
-	Region         string          `json:"region,omitempty"`         // For rule evaluation requests
-	BatchSize      int             `json:"batchSize,omitempty"`      // For rule evaluation requests
-}
-
 func main() {
 	// Set up structured logging with JSON output for Lambda
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -44,13 +35,13 @@ func main() {
 	h := handler.NewComplianceHandler(complianceService)
 
 	// Start Lambda with unified handler
-	lambda.Start(func(ctx context.Context, request LambdaRequest) error {
+	lambda.Start(func(ctx context.Context, request types.LambdaRequest) error {
 		return handleUnifiedRequest(ctx, h, request)
 	})
 }
 
 // handleUnifiedRequest routes requests to the appropriate handler based on request type
-func handleUnifiedRequest(ctx context.Context, h *handler.ComplianceHandler, request LambdaRequest) error {
+func handleUnifiedRequest(ctx context.Context, h *handler.ComplianceHandler, request types.LambdaRequest) error {
 	slog.Info("Received Lambda request", "type", request.Type)
 
 	switch request.Type {
