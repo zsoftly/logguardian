@@ -17,9 +17,15 @@
 # Go workspace file
 go.work
 
-# Build directories
+# Build directories and artifacts
 build/
 dist/
+bin/
+
+# Lambda function binaries
+lambda
+main
+logguardian
 
 # Lambda deployment packages
 *.zip

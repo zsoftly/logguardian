@@ -83,6 +83,122 @@ func (h *ComplianceHandler) HandleConfigEvent(ctx context.Context, event json.Ra
 	return nil
 }
 
+// HandleBatchConfigEvaluation handles batch processing of Config rule evaluation results
+func (h *ComplianceHandler) HandleBatchConfigEvaluation(ctx context.Context, event json.RawMessage) error {
+	slog.Info("Received batch Config evaluation event", "event_size", len(event))
+
+	// Parse the batch event
+	var batchRequest types.BatchComplianceRequest
+	if err := json.Unmarshal(event, &batchRequest); err != nil {
+		slog.Error("Failed to parse batch Config event", "error", err)
+		return fmt.Errorf("failed to parse batch Config event: %w", err)
+	}
+
+	slog.Info("Processing batch compliance event",
+		"config_rule", batchRequest.ConfigRuleName,
+		"region", batchRequest.Region,
+		"resource_count", len(batchRequest.NonCompliantResults),
+		"batch_size", batchRequest.BatchSize)
+
+	// Process the batch of non-compliant resources
+	result, err := h.complianceService.ProcessNonCompliantResources(ctx, batchRequest)
+	if err != nil {
+		slog.Error("Batch remediation failed",
+			"config_rule", batchRequest.ConfigRuleName,
+			"error", err)
+		return fmt.Errorf("batch remediation failed for rule %s: %w", batchRequest.ConfigRuleName, err)
+	}
+
+	slog.Info("Batch remediation completed",
+		"config_rule", batchRequest.ConfigRuleName,
+		"total_processed", result.TotalProcessed,
+		"success_count", result.SuccessCount,
+		"failure_count", result.FailureCount,
+		"duration", result.ProcessingDuration,
+		"rate_limit_hits", result.RateLimitHits)
+
+	return nil
+}
+
+// HandleConfigRuleEvaluationRequest handles requests to process Config rule evaluation results
+func (h *ComplianceHandler) HandleConfigRuleEvaluationRequest(ctx context.Context, configRuleName, region string, batchSize int) error {
+	slog.Info("Processing Config rule evaluation request",
+		"config_rule", configRuleName,
+		"region", region,
+		"batch_size", batchSize)
+
+	// Step 1: Get non-compliant resources from Config API
+	nonCompliantResources, err := h.complianceService.GetNonCompliantResources(ctx, configRuleName, region)
+	if err != nil {
+		slog.Error("Failed to retrieve non-compliant resources",
+			"config_rule", configRuleName,
+			"error", err)
+		return fmt.Errorf("failed to retrieve non-compliant resources: %w", err)
+	}
+
+	if len(nonCompliantResources) == 0 {
+		slog.Info("No non-compliant resources found",
+			"config_rule", configRuleName,
+			"region", region)
+		return nil
+	}
+
+	slog.Info("Found non-compliant resources",
+		"config_rule", configRuleName,
+		"region", region,
+		"count", len(nonCompliantResources))
+
+	// Step 2: Validate resource existence before processing
+	validResources, err := h.complianceService.ValidateResourceExistence(ctx, nonCompliantResources)
+	if err != nil {
+		slog.Error("Failed to validate resource existence",
+			"config_rule", configRuleName,
+			"error", err)
+		return fmt.Errorf("failed to validate resource existence: %w", err)
+	}
+
+	if len(validResources) == 0 {
+		slog.Info("No valid resources found after validation",
+			"config_rule", configRuleName,
+			"region", region)
+		return nil
+	}
+
+	slog.Info("Validated resources for processing",
+		"config_rule", configRuleName,
+		"region", region,
+		"valid_count", len(validResources),
+		"filtered_count", len(nonCompliantResources)-len(validResources))
+
+	// Step 3: Create batch request and process
+	batchRequest := types.BatchComplianceRequest{
+		ConfigRuleName:      configRuleName,
+		NonCompliantResults: validResources,
+		Region:              region,
+		BatchSize:           batchSize,
+	}
+
+	// Step 4: Process the batch
+	result, err := h.complianceService.ProcessNonCompliantResources(ctx, batchRequest)
+	if err != nil {
+		slog.Error("Batch processing failed",
+			"config_rule", configRuleName,
+			"error", err)
+		return fmt.Errorf("batch processing failed: %w", err)
+	}
+
+	slog.Info("Config rule evaluation processing completed",
+		"config_rule", configRuleName,
+		"region", region,
+		"total_processed", result.TotalProcessed,
+		"success_count", result.SuccessCount,
+		"failure_count", result.FailureCount,
+		"duration", result.ProcessingDuration,
+		"rate_limit_hits", result.RateLimitHits)
+
+	return nil
+}
+
 // analyzeCompliance checks what remediation is needed for a log group
 func (h *ComplianceHandler) analyzeCompliance(configItem types.ConfigurationItem) types.ComplianceResult {
 	config := configItem.Configuration

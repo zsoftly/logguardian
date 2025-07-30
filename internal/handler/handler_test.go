@@ -248,6 +248,26 @@ func (m *MockComplianceService) RemediateLogGroup(ctx context.Context, complianc
 	}, nil
 }
 
+func (m *MockComplianceService) ProcessNonCompliantResources(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error) {
+	// Mock implementation for batch processing
+	return &types.BatchRemediationResult{
+		TotalProcessed: len(request.NonCompliantResults),
+		SuccessCount:   len(request.NonCompliantResults),
+		FailureCount:   0,
+		Results:        []types.RemediationResult{},
+	}, nil
+}
+
+func (m *MockComplianceService) GetNonCompliantResources(ctx context.Context, configRuleName string, region string) ([]types.NonCompliantResource, error) {
+	// Mock implementation - return empty list for testing
+	return []types.NonCompliantResource{}, nil
+}
+
+func (m *MockComplianceService) ValidateResourceExistence(ctx context.Context, resources []types.NonCompliantResource) ([]types.NonCompliantResource, error) {
+	// Mock implementation - return all resources as valid
+	return resources, nil
+}
+
 // Helper function to create int32 pointer
 func intPtr(i int32) *int32 {
 	return &i
