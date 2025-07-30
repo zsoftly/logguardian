@@ -176,52 +176,66 @@ func (mrs *MultiRegionComplianceService) ValidateRegionAccess(ctx context.Contex
 }
 
 // ValidateKMSKeysAcrossRegions validates KMS keys in all configured regions
-// This provides comprehensive cross-region KMS key validation
+// This provides comprehensive cross-region KMS key validation with concurrent processing
 func (mrs *MultiRegionComplianceService) ValidateKMSKeysAcrossRegions(ctx context.Context) (map[string]*types.KMSValidationReport, error) {
 	mrs.mu.RLock()
 	defer mrs.mu.RUnlock()
 
 	reports := make(map[string]*types.KMSValidationReport)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	slog.Info("Starting cross-region KMS key validation",
 		"regions", len(mrs.services),
 		"audit_action", "multi_region_kms_validation_start")
 
+	// Process regions concurrently for better performance
 	for region, service := range mrs.services {
-		slog.Info("Validating KMS key in region",
-			"region", region,
-			"key_alias", service.config.DefaultKMSKeyAlias)
+		wg.Add(1)
+		go func(region string, service *ComplianceService) {
+			defer wg.Done()
 
-		report, err := service.ValidateKMSKeyComprehensively(ctx, service.config.DefaultKMSKeyAlias)
-		if err != nil {
-			slog.Error("Failed to validate KMS key in region",
+			slog.Info("Validating KMS key in region",
+				"region", region,
+				"key_alias", service.config.DefaultKMSKeyAlias)
+
+			report, err := service.ValidateKMSKeyComprehensively(ctx, service.config.DefaultKMSKeyAlias)
+			if err != nil {
+				slog.Error("Failed to validate KMS key in region",
+					"region", region,
+					"key_alias", service.config.DefaultKMSKeyAlias,
+					"error", err,
+					"audit_action", "region_kms_validation_error")
+
+				// Create a minimal report with error information
+				report = &types.KMSValidationReport{
+					KeyAlias:            service.config.DefaultKMSKeyAlias,
+					CurrentRegion:       region,
+					ValidationTimestamp: time.Now().UTC(),
+					KeyExists:           false,
+					KeyAccessible:       false,
+					ValidationErrors:    []string{err.Error()},
+				}
+			}
+
+			// Thread-safe access to shared reports map
+			mu.Lock()
+			reports[region] = report
+			mu.Unlock()
+
+			slog.Info("Completed KMS key validation for region",
 				"region", region,
 				"key_alias", service.config.DefaultKMSKeyAlias,
-				"error", err,
-				"audit_action", "region_kms_validation_error")
-
-			// Create a minimal report with error information
-			report = &types.KMSValidationReport{
-				KeyAlias:            service.config.DefaultKMSKeyAlias,
-				CurrentRegion:       region,
-				ValidationTimestamp: time.Now().UTC(),
-				KeyExists:           false,
-				KeyAccessible:       false,
-				ValidationErrors:    []string{err.Error()},
-			}
-		}
-
-		reports[region] = report
-
-		slog.Info("Completed KMS key validation for region",
-			"region", region,
-			"key_alias", service.config.DefaultKMSKeyAlias,
-			"key_exists", report.KeyExists,
-			"key_accessible", report.KeyAccessible,
-			"cloudwatch_logs_access", report.CloudWatchLogsAccess,
-			"validation_errors", len(report.ValidationErrors),
-			"validation_warnings", len(report.ValidationWarnings))
+				"key_exists", report.KeyExists,
+				"key_accessible", report.KeyAccessible,
+				"cloudwatch_logs_access", report.CloudWatchLogsAccess,
+				"validation_errors", len(report.ValidationErrors),
+				"validation_warnings", len(report.ValidationWarnings))
+		}(region, service)
 	}
+
+	// Wait for all concurrent validations to complete
+	wg.Wait()
 
 	// Log summary
 	totalRegions := len(reports)

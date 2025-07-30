@@ -493,17 +493,20 @@ func (s *ComplianceService) validateKMSKeyState(keyState kmstypes.KeyState) erro
 
 // checkCloudWatchLogsPolicyAccess checks if a policy contains CloudWatch Logs service access
 func (s *ComplianceService) checkCloudWatchLogsPolicyAccess(policy string) bool {
+	// Cache the current region to avoid repeated function calls
+	currentRegion := s.getCurrentRegion()
+
 	// Check if the policy contains CloudWatch Logs service principals
 	// Support both generic and region-specific service principals
 	requiredPrincipals := []string{
 		"logs.amazonaws.com",
-		fmt.Sprintf("logs.%s.amazonaws.com", s.getCurrentRegion()),
+		fmt.Sprintf("logs.%s.amazonaws.com", currentRegion),
 	}
 
 	// Also check for AWS service principal patterns in the policy
 	servicePatterns := []string{
 		`"Service": "logs.amazonaws.com"`,
-		fmt.Sprintf(`"Service": "logs.%s.amazonaws.com"`, s.getCurrentRegion()),
+		fmt.Sprintf(`"Service": "logs.%s.amazonaws.com"`, currentRegion),
 		`"Service": ["logs.amazonaws.com"`,
 		`"Service":["logs.amazonaws.com"`,
 		`"Service": [ "logs.amazonaws.com"`,
