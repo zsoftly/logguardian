@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,9 +17,9 @@ import (
 // MultiRegionComplianceService handles compliance across multiple AWS regions
 type MultiRegionComplianceService struct {
 	baseConfig     aws.Config
-	serviceConfigs map[string]ServiceConfig // region -> config
+	serviceConfigs map[string]ServiceConfig      // region -> config
 	services       map[string]*ComplianceService // region -> service
-	mu            sync.RWMutex
+	mu             sync.RWMutex
 }
 
 // NewMultiRegionComplianceService creates a new multi-region compliance service
@@ -98,7 +99,7 @@ func (mrs *MultiRegionComplianceService) LoadRegionsFromConfig(ctx context.Conte
 		serviceConfig := ServiceConfig{
 			DefaultKMSKeyAlias:   getEnvOrDefault(fmt.Sprintf("KMS_KEY_ALIAS_%s", region), getEnvOrDefault("KMS_KEY_ALIAS", "alias/cloudwatch-logs-compliance")),
 			DefaultRetentionDays: int32(getEnvAsIntOrDefault(fmt.Sprintf("DEFAULT_RETENTION_DAYS_%s", region), getEnvAsIntOrDefault("DEFAULT_RETENTION_DAYS", 365))),
-			DryRun:              getEnvAsBoolOrDefault("DRY_RUN", false),
+			DryRun:               getEnvAsBoolOrDefault("DRY_RUN", false),
 		}
 
 		if err := mrs.AddRegion(region, serviceConfig); err != nil {
@@ -177,67 +178,11 @@ func parseCommaDelimitedString(s string) []string {
 	}
 
 	var result []string
-	for _, item := range splitAndTrim(s, ",") {
-		if item != "" {
-			result = append(result, item)
-		}
-	}
-	return result
-}
-
-// splitAndTrim splits a string and trims whitespace from each part
-func splitAndTrim(s, delimiter string) []string {
-	parts := make([]string, 0)
-	for i, part := range splitString(s, delimiter) {
-		trimmed := trimWhitespace(part)
+	for _, item := range strings.Split(s, ",") {
+		trimmed := strings.TrimSpace(item)
 		if trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-		_ = i // avoid unused variable
-	}
-	return parts
-}
-
-// splitString splits a string by delimiter
-func splitString(s, delimiter string) []string {
-	if s == "" {
-		return []string{}
-	}
-	
-	result := make([]string, 0)
-	start := 0
-	delimLen := len(delimiter)
-	
-	for i := 0; i <= len(s)-delimLen; i++ {
-		if s[i:i+delimLen] == delimiter {
-			result = append(result, s[start:i])
-			start = i + delimLen
-			i += delimLen - 1
+			result = append(result, trimmed)
 		}
 	}
-	result = append(result, s[start:])
 	return result
-}
-
-// trimWhitespace removes leading and trailing whitespace
-func trimWhitespace(s string) string {
-	start := 0
-	end := len(s)
-	
-	// Trim leading whitespace
-	for start < end && isWhitespace(s[start]) {
-		start++
-	}
-	
-	// Trim trailing whitespace
-	for end > start && isWhitespace(s[end-1]) {
-		end--
-	}
-	
-	return s[start:end]
-}
-
-// isWhitespace checks if a character is whitespace
-func isWhitespace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
 }
