@@ -147,6 +147,8 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 					DefaultKMSKeyAlias:   "alias/test-key",
 					DefaultRetentionDays: 365,
 					DryRun:               tt.dryRun,
+					MaxKMSRetries:        3,
+					RetryBaseDelay:       100,
 				},
 			}
 

@@ -37,6 +37,8 @@ type ServiceConfig struct {
 	DryRun               bool
 	BatchLimit           int32
 	Region               string
+	MaxKMSRetries        int32
+	RetryBaseDelay       time.Duration
 }
 
 // NewComplianceService creates a new compliance service
@@ -52,6 +54,8 @@ func NewComplianceService(cfg aws.Config) *ComplianceService {
 		DryRun:               getEnvAsBoolOrDefault("DRY_RUN", false),
 		BatchLimit:           getEnvAsInt32OrDefault("BATCH_LIMIT", 100),
 		Region:               region,
+		MaxKMSRetries:        getEnvAsInt32OrDefault("MAX_KMS_RETRIES", 3),
+		RetryBaseDelay:       time.Duration(getEnvAsInt32OrDefault("RETRY_BASE_DELAY_MS", 1000)) * time.Millisecond,
 	}
 
 	return &ComplianceService{
@@ -574,13 +578,14 @@ func (s *ComplianceService) validateKMSKeyPolicyForCloudWatchLogs(ctx context.Co
 
 // associateKMSKeyWithRetry associates a KMS key with the log group with retry logic
 func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGroupName, keyId string) error {
-	const maxRetries = 3
+	maxRetries := int(s.config.MaxKMSRetries)
 	var lastErr error
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff: 1s, 2s, 4s
-			delay := time.Duration(1<<attempt) * time.Second
+			// Exponential backoff using bit shift: 1<<attempt gives us 1, 2, 4, 8, etc.
+			// Combined with base delay: if base=1s, we get 1s, 2s, 4s delays
+			delay := time.Duration(1<<attempt) * s.config.RetryBaseDelay
 			slog.Info("Retrying KMS key association",
 				"log_group", logGroupName,
 				"kms_key_id", keyId,
