@@ -259,39 +259,9 @@ func (s *ComplianceService) ValidateKMSKeyComprehensively(ctx context.Context, k
 		// Check for CloudWatch Logs access in policy
 		if policyResult.Policy != nil {
 			policy := *policyResult.Policy
+			report.CloudWatchLogsAccess = s.checkCloudWatchLogsPolicyAccess(policy)
 
-			// Check for CloudWatch Logs service principals
-			requiredPrincipals := []string{
-				"logs.amazonaws.com",
-				fmt.Sprintf("logs.%s.amazonaws.com", s.getCurrentRegion()),
-			}
-
-			servicePatterns := []string{
-				`"Service": "logs.amazonaws.com"`,
-				fmt.Sprintf(`"Service": "logs.%s.amazonaws.com"`, s.getCurrentRegion()),
-				`"logs.amazonaws.com"`,
-			}
-
-			hasLogsAccess := false
-			for _, principal := range requiredPrincipals {
-				if strings.Contains(policy, principal) {
-					hasLogsAccess = true
-					break
-				}
-			}
-
-			if !hasLogsAccess {
-				for _, pattern := range servicePatterns {
-					if strings.Contains(policy, pattern) {
-						hasLogsAccess = true
-						break
-					}
-				}
-			}
-
-			report.CloudWatchLogsAccess = hasLogsAccess
-
-			if !hasLogsAccess {
+			if !report.CloudWatchLogsAccess {
 				report.ValidationWarnings = append(report.ValidationWarnings,
 					"KMS key policy may not allow CloudWatch Logs service access")
 				report.RecommendedActions = append(report.RecommendedActions,
@@ -486,6 +456,42 @@ func (s *ComplianceService) validateKMSKeyState(keyState kmstypes.KeyState) erro
 	}
 }
 
+// checkCloudWatchLogsPolicyAccess checks if a policy contains CloudWatch Logs service access
+func (s *ComplianceService) checkCloudWatchLogsPolicyAccess(policy string) bool {
+	// Check if the policy contains CloudWatch Logs service principals
+	// Support both generic and region-specific service principals
+	requiredPrincipals := []string{
+		"logs.amazonaws.com",
+		fmt.Sprintf("logs.%s.amazonaws.com", s.getCurrentRegion()),
+	}
+
+	// Also check for AWS service principal patterns in the policy
+	servicePatterns := []string{
+		`"Service": "logs.amazonaws.com"`,
+		fmt.Sprintf(`"Service": "logs.%s.amazonaws.com"`, s.getCurrentRegion()),
+		`"Service": ["logs.amazonaws.com"`,
+		`"Service":["logs.amazonaws.com"`,
+		`"Service": [ "logs.amazonaws.com"`,
+		`"logs.amazonaws.com"`,
+	}
+
+	// Check for required principals first
+	for _, principal := range requiredPrincipals {
+		if strings.Contains(policy, principal) {
+			return true
+		}
+	}
+
+	// Check for service patterns
+	for _, pattern := range servicePatterns {
+		if strings.Contains(policy, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // validateKMSKeyPolicyForCloudWatchLogs verifies key policies allow CloudWatch Logs service
 func (s *ComplianceService) validateKMSKeyPolicyForCloudWatchLogs(ctx context.Context, keyId string) error {
 	slog.Info("Validating KMS key policy for CloudWatch Logs access",
@@ -516,54 +522,18 @@ func (s *ComplianceService) validateKMSKeyPolicyForCloudWatchLogs(ctx context.Co
 	}
 
 	policy := *policyResult.Policy
-
-	// Check if the policy contains CloudWatch Logs service principals
-	// Support both generic and region-specific service principals
-	requiredPrincipals := []string{
-		"logs.amazonaws.com",
-		fmt.Sprintf("logs.%s.amazonaws.com", s.getCurrentRegion()),
-	}
-
-	// Also check for AWS service principal patterns in the policy
-	servicePatterns := []string{
-		`"Service": "logs.amazonaws.com"`,
-		fmt.Sprintf(`"Service": "logs.%s.amazonaws.com"`, s.getCurrentRegion()),
-		`"Service": ["logs.amazonaws.com"`,
-		`"Service":["logs.amazonaws.com"`,
-		`"Service": [ "logs.amazonaws.com"`,
-		`"logs.amazonaws.com"`,
-	}
-
-	policyContainsLogsService := false
-	for _, principal := range requiredPrincipals {
-		if strings.Contains(policy, principal) {
-			policyContainsLogsService = true
-			break
-		}
-	}
-
-	// Additional validation for service patterns
-	if !policyContainsLogsService {
-		for _, pattern := range servicePatterns {
-			if strings.Contains(policy, pattern) {
-				policyContainsLogsService = true
-				break
-			}
-		}
-	}
+	policyContainsLogsService := s.checkCloudWatchLogsPolicyAccess(policy)
 
 	// Log comprehensive audit information
 	slog.Info("KMS key policy validation audit",
 		"kms_key_id", keyId,
 		"policy_accessible", true,
 		"cloudwatch_logs_access_found", policyContainsLogsService,
-		"required_principals", requiredPrincipals,
 		"validation_timestamp", time.Now().UTC().Format(time.RFC3339))
 
 	if !policyContainsLogsService {
 		slog.Warn("KMS key policy may not include CloudWatch Logs service access",
 			"kms_key_id", keyId,
-			"required_principals", requiredPrincipals,
 			"note", "Ensure the key policy allows the CloudWatch Logs service to use this key",
 			"audit_action", "policy_validation_warning")
 	} else {
@@ -581,11 +551,18 @@ func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGro
 	maxRetries := int(s.config.MaxKMSRetries)
 	var lastErr error
 
+	// Maximum delay cap to prevent excessive wait times (30 seconds)
+	const maxDelay = 30 * time.Second
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff using bit shift: 1<<attempt gives us 1, 2, 4, 8, etc.
 			// Combined with base delay: if base=1s, we get 1s, 2s, 4s delays
+			// Cap the delay to prevent excessive wait times for high attempt counts
 			delay := time.Duration(1<<attempt) * s.config.RetryBaseDelay
+			if delay > maxDelay {
+				delay = maxDelay
+			}
 			slog.Info("Retrying KMS key association",
 				"log_group", logGroupName,
 				"kms_key_id", keyId,
@@ -677,8 +654,8 @@ func isKMSAccessDeniedError(err error) bool {
 		return false
 	}
 
-	// Check for specific KMS access denied exception types - using interface check
-	// since the exact type names may vary across AWS SDK versions
+	// Check for KMS access denied exception types using errors.As with smithy.APIError
+	// This provides consistent error handling across different AWS SDK error types
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
 		errorCode := apiErr.ErrorCode()
