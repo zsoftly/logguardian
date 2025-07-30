@@ -52,16 +52,10 @@ jobs:
           cache: true
 
       - name: Run GoSec security scan
-        uses: securecodewarrior/github-action-gosec@master
+        uses: securego/gosec@master
         with:
-          args: '-fmt sarif -out gosec.sarif ./...'
+          args: './...'
         continue-on-error: true
-
-      - name: Upload security findings to GitHub
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: gosec.sarif
-        if: always()
 
       - name: Run Go vulnerability check
         run: |
