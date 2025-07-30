@@ -62,11 +62,20 @@ DEFAULT_RETENTION_DAYS=365
 # Optional
 SUPPORTED_REGIONS=us-east-1,us-west-2,eu-west-1
 DRY_RUN=false
+BATCH_LIMIT=100
 
 # Region-specific overrides
 KMS_KEY_ALIAS_us_west_2=alias/cloudwatch-logs-west
 DEFAULT_RETENTION_DAYS_us_west_2=180
 ```
+
+### Environment Variable Details
+
+- **KMS_KEY_ALIAS**: KMS key alias for encrypting log groups
+- **DEFAULT_RETENTION_DAYS**: Default retention period for log groups (in days)
+- **DRY_RUN**: When true, logs actions without making changes
+- **BATCH_LIMIT**: Maximum number of resources to retrieve per Config API call (default: 100)
+- **SUPPORTED_REGIONS**: Comma-separated list of regions to process
 
 ## Usage
 

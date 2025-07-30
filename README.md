@@ -55,6 +55,7 @@ make test && make security
 **✅ Completed:**
 - Go 1.24 Lambda function with AWS SDK v2
 - AWS Config event processing and compliance analysis
+- Config rule evaluation batch processing for non-compliant resources
 - KMS encryption and retention policy remediation
 - Multi-region support with memory optimization
 - Comprehensive test suite with mocked AWS services
@@ -229,7 +230,8 @@ module "logguardian" {
 
 ## 📚 Documentation
 
-- [📘 Go Lambda Function](docs/go-lambda-function.md) - Complete Lambda function documentation
+- [📘 Go Lambda Function](docs/go-lambda-function.md) - Complete Lambda function documentation  
+- [⚙️ Config Rule Evaluation](docs/config-rule-evaluation.md) - Batch processing non-compliant resources
 - [🔧 Development Guide](docs/development.md) - Development setup and guidelines
 - [🏗️ Architecture Deep Dive](docs/architecture.md) - Technical architecture details
 - [🔒 Security Best Practices](docs/security.md) - Security implementation guide

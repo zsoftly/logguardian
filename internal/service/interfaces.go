@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/zsoftly/logguardian/internal/types"
 )
@@ -11,6 +12,9 @@ import (
 // ComplianceServiceInterface defines the interface for compliance operations
 type ComplianceServiceInterface interface {
 	RemediateLogGroup(ctx context.Context, compliance types.ComplianceResult) (*types.RemediationResult, error)
+	ProcessNonCompliantResources(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error)
+	GetNonCompliantResources(ctx context.Context, configRuleName string, region string) ([]types.NonCompliantResource, error)
+	ValidateResourceExistence(ctx context.Context, resources []types.NonCompliantResource) ([]types.NonCompliantResource, error)
 }
 
 // CloudWatchLogsClientInterface defines the interface for CloudWatch Logs operations
@@ -23,4 +27,10 @@ type CloudWatchLogsClientInterface interface {
 // KMSClientInterface defines the interface for KMS operations
 type KMSClientInterface interface {
 	DescribeKey(ctx context.Context, params *kms.DescribeKeyInput, optFns ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
+}
+
+// ConfigServiceClientInterface defines the interface for AWS Config operations
+type ConfigServiceClientInterface interface {
+	GetComplianceDetailsByConfigRule(ctx context.Context, params *configservice.GetComplianceDetailsByConfigRuleInput, optFns ...func(*configservice.Options)) (*configservice.GetComplianceDetailsByConfigRuleOutput, error)
+	GetComplianceDetailsByResource(ctx context.Context, params *configservice.GetComplianceDetailsByResourceInput, optFns ...func(*configservice.Options)) (*configservice.GetComplianceDetailsByResourceOutput, error)
 }

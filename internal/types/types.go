@@ -70,3 +70,63 @@ type RemediationResult struct {
 	Success           bool
 	Error             error
 }
+
+// ConfigRuleEvaluationResults represents AWS Config rule evaluation results
+type ConfigRuleEvaluationResults struct {
+	EvaluationResults []EvaluationResult `json:"evaluationResults"`
+	NextToken         string             `json:"nextToken,omitempty"`
+}
+
+// EvaluationResult represents a single Config rule evaluation result
+type EvaluationResult struct {
+	EvaluationResultIdentifier EvaluationResultIdentifier `json:"evaluationResultIdentifier"`
+	ComplianceType             string                     `json:"complianceType"`
+	ResultRecordedTime         time.Time                  `json:"resultRecordedTime"`
+	ConfigRuleInvokedTime      time.Time                  `json:"configRuleInvokedTime"`
+	Annotation                 string                     `json:"annotation,omitempty"`
+	ResultToken                string                     `json:"resultToken,omitempty"`
+}
+
+// EvaluationResultIdentifier identifies a Config evaluation result
+type EvaluationResultIdentifier struct {
+	EvaluationResultQualifier EvaluationResultQualifier `json:"evaluationResultQualifier"`
+	OrderingTimestamp         time.Time                 `json:"orderingTimestamp"`
+}
+
+// EvaluationResultQualifier qualifies a Config evaluation result
+type EvaluationResultQualifier struct {
+	ConfigRuleName string `json:"configRuleName"`
+	ResourceType   string `json:"resourceType"`
+	ResourceId     string `json:"resourceId"`
+	EvaluationMode string `json:"evaluationMode,omitempty"`
+}
+
+// BatchComplianceRequest represents a request to process multiple non-compliant resources
+type BatchComplianceRequest struct {
+	ConfigRuleName      string                 `json:"configRuleName"`
+	NonCompliantResults []NonCompliantResource `json:"nonCompliantResults"`
+	Region              string                 `json:"region"`
+	BatchSize           int                    `json:"batchSize"`
+}
+
+// NonCompliantResource represents a non-compliant resource from Config
+type NonCompliantResource struct {
+	ResourceId     string    `json:"resourceId"`
+	ResourceType   string    `json:"resourceType"`
+	ResourceName   string    `json:"resourceName"`
+	Region         string    `json:"region"`
+	AccountId      string    `json:"accountId"`
+	ComplianceType string    `json:"complianceType"`
+	Annotation     string    `json:"annotation"`
+	LastEvaluated  time.Time `json:"lastEvaluated"`
+}
+
+// BatchRemediationResult represents the result of batch remediation
+type BatchRemediationResult struct {
+	TotalProcessed     int                 `json:"totalProcessed"`
+	SuccessCount       int                 `json:"successCount"`
+	FailureCount       int                 `json:"failureCount"`
+	Results            []RemediationResult `json:"results"`
+	ProcessingDuration time.Duration       `json:"processingDuration"`
+	RateLimitHits      int                 `json:"rateLimitHits"`
+}
