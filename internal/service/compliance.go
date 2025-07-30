@@ -54,6 +54,10 @@ const (
 	FailureStageKeyValidation    = "key_validation"
 	FailureStagePolicyValidation = "policy_validation"
 	FailureStageKeyAssociation   = "key_association"
+
+	// Retry logic constants
+	MaxExponentialBackoffAttempts = 10   // Maximum attempts before capping multiplier to prevent overflow
+	MaxBackoffMultiplier          = 1024 // 2^10, maximum multiplier for exponential backoff
 )
 
 // ComplianceService handles log group compliance remediation
@@ -144,6 +148,9 @@ func (s *ComplianceService) RemediateLogGroup(ctx context.Context, compliance ty
 
 // applyEncryption associates a KMS key with the log group
 func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName string) error {
+	// Cache the current region to avoid repeated function calls
+	currentRegion := s.getCurrentRegion()
+
 	if s.config.DryRun {
 		slog.Info("DRY RUN: Would apply KMS encryption",
 			"log_group", logGroupName,
@@ -218,8 +225,8 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 		"kms_key_id", keyInfo.KeyId,
 		"kms_key_arn", keyInfo.Arn,
 		"key_region", keyInfo.Region,
-		"current_region", s.getCurrentRegion(),
-		"is_cross_region", keyInfo.Region != s.getCurrentRegion(),
+		"current_region", currentRegion,
+		"is_cross_region", keyInfo.Region != currentRegion,
 		"operation", "associate_kms_key",
 		"audit_action", AuditActionEncryptionSuccess,
 		"security_enhancement", "log_group_encrypted",
@@ -356,9 +363,12 @@ type KMSKeyInfo struct {
 
 // validateKMSKeyAccessibility validates KMS key existence and accessibility
 func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, keyAlias string) (*KMSKeyInfo, error) {
+	// Cache the current region to avoid repeated function calls
+	currentRegion := s.getCurrentRegion()
+
 	slog.Info("Validating KMS key accessibility",
 		"kms_key_alias", keyAlias,
-		"current_region", s.getCurrentRegion())
+		"current_region", currentRegion)
 
 	input := &kms.DescribeKeyInput{
 		KeyId: aws.String(keyAlias),
@@ -371,31 +381,31 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 			// Log detailed error for audit trail
 			slog.Error("KMS key not found during validation",
 				"kms_key_alias", keyAlias,
-				"current_region", s.getCurrentRegion(),
+				"current_region", currentRegion,
 				"error", err,
 				"audit_action", AuditActionKeyValidationFailed,
 				"failure_reason", FailureReasonKeyNotFound)
-			return nil, fmt.Errorf("KMS key not found: %s. Please ensure the key exists and is accessible in region %s", keyAlias, s.getCurrentRegion())
+			return nil, fmt.Errorf("KMS key not found: %s. Please ensure the key exists and is accessible in region %s", keyAlias, currentRegion)
 		}
 		if isKMSAccessDeniedError(err) {
 			// Log detailed error for audit trail
 			slog.Error("KMS key access denied during validation",
 				"kms_key_alias", keyAlias,
-				"current_region", s.getCurrentRegion(),
+				"current_region", currentRegion,
 				"error", err,
 				"audit_action", AuditActionKeyValidationFailed,
 				"failure_reason", FailureReasonAccessDenied)
-			return nil, fmt.Errorf("access denied to KMS key: %s. Please ensure proper IAM permissions are configured for region %s", keyAlias, s.getCurrentRegion())
+			return nil, fmt.Errorf("access denied to KMS key: %s. Please ensure proper IAM permissions are configured for region %s", keyAlias, currentRegion)
 		}
 
 		// Log general errors with audit information
 		slog.Error("KMS key validation failed",
 			"kms_key_alias", keyAlias,
-			"current_region", s.getCurrentRegion(),
+			"current_region", currentRegion,
 			"error", err,
 			"audit_action", AuditActionKeyValidationFailed,
 			"failure_reason", FailureReasonGeneralError)
-		return nil, fmt.Errorf("failed to describe KMS key %s in region %s: %w", keyAlias, s.getCurrentRegion(), err)
+		return nil, fmt.Errorf("failed to describe KMS key %s in region %s: %w", keyAlias, currentRegion, err)
 	}
 
 	if result.KeyMetadata == nil {
@@ -435,7 +445,6 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 		keyInfo.Region = parts[3]
 
 		// Cross-region validation: warn if key is in different region
-		currentRegion := s.getCurrentRegion()
 		if keyInfo.Region != currentRegion {
 			slog.Warn("KMS key is in different region than current",
 				"kms_key_alias", keyAlias,
@@ -465,8 +474,8 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 		"kms_key_arn", keyInfo.Arn,
 		"key_state", keyInfo.KeyState,
 		"key_region", keyInfo.Region,
-		"current_region", s.getCurrentRegion(),
-		"is_cross_region", keyInfo.Region != s.getCurrentRegion(),
+		"current_region", currentRegion,
+		"is_cross_region", keyInfo.Region != currentRegion,
 		"audit_action", AuditActionKeyValidationSuccess,
 		"validation_timestamp", time.Now().UTC().Format(time.RFC3339))
 
@@ -594,10 +603,17 @@ func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGro
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff using bit shift: 1<<attempt gives us 1, 2, 4, 8, etc.
-			// Combined with base delay: if base=1s, we get 1s, 2s, 4s delays
-			// Cap the delay to prevent excessive wait times for high attempt counts
-			delay := time.Duration(1<<attempt) * s.config.RetryBaseDelay
+			// Exponential backoff with overflow protection
+			// Use bit shifting for efficient power-of-2 calculations
+			var multiplier int64
+			if attempt < MaxExponentialBackoffAttempts {
+				// Bit shifting is faster and more direct: 1<<attempt gives us 2^attempt
+				multiplier = int64(1 << attempt)
+			} else {
+				// Cap at MaxBackoffMultiplier (2^10) to prevent excessive delays
+				multiplier = MaxBackoffMultiplier
+			}
+			delay := time.Duration(multiplier) * s.config.RetryBaseDelay
 			if delay > maxDelay {
 				delay = maxDelay
 			}
