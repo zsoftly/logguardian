@@ -21,6 +21,41 @@ import (
 	"github.com/zsoftly/logguardian/internal/types"
 )
 
+// Audit action constants for consistent logging and compliance tracking
+const (
+	// Encryption audit actions
+	AuditActionEncryptionStart   = "encryption_start"
+	AuditActionEncryptionSuccess = "encryption_success"
+	AuditActionEncryptionFailed  = "encryption_failed"
+	AuditActionEncryptionDryRun  = "encryption_dry_run"
+
+	// Key validation audit actions
+	AuditActionKeyValidationSuccess = "key_validation_success"
+	AuditActionKeyValidationFailed  = "key_validation_failed"
+	AuditActionCrossRegionKeyUsage  = "cross_region_key_usage"
+
+	// Policy validation audit actions
+	AuditActionPolicyValidationSuccess = "policy_validation_success"
+	AuditActionPolicyValidationWarning = "policy_validation_warning"
+
+	// Comprehensive validation audit actions
+	AuditActionComprehensiveKMSValidation = "comprehensive_kms_validation"
+
+	// Failure reason constants
+	FailureReasonKeyNotFound      = "key_not_found"
+	FailureReasonAccessDenied     = "access_denied"
+	FailureReasonGeneralError     = "general_error"
+	FailureReasonInvalidMetadata  = "invalid_metadata"
+	FailureReasonMissingKeyID     = "missing_key_id"
+	FailureReasonMissingKeyARN    = "missing_key_arn"
+	FailureReasonUnusableKeyState = "unusable_key_state"
+
+	// Failure stage constants
+	FailureStageKeyValidation    = "key_validation"
+	FailureStagePolicyValidation = "policy_validation"
+	FailureStageKeyAssociation   = "key_association"
+)
+
 // ComplianceService handles log group compliance remediation
 type ComplianceService struct {
 	logsClient        CloudWatchLogsClientInterface
@@ -113,7 +148,7 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 		slog.Info("DRY RUN: Would apply KMS encryption",
 			"log_group", logGroupName,
 			"kms_key_alias", s.config.DefaultKMSKeyAlias,
-			"audit_action", "encryption_dry_run",
+			"audit_action", AuditActionEncryptionDryRun,
 			"timestamp", time.Now().UTC().Format(time.RFC3339))
 		return nil
 	}
@@ -121,7 +156,7 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 	slog.Info("Starting KMS encryption process",
 		"log_group", logGroupName,
 		"kms_key_alias", s.config.DefaultKMSKeyAlias,
-		"audit_action", "encryption_start",
+		"audit_action", AuditActionEncryptionStart,
 		"timestamp", time.Now().UTC().Format(time.RFC3339))
 
 	// Step 1: Validate KMS key existence and accessibility
@@ -131,8 +166,8 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 			"log_group", logGroupName,
 			"kms_key_alias", s.config.DefaultKMSKeyAlias,
 			"error", err,
-			"audit_action", "encryption_failed",
-			"failure_stage", "key_validation",
+			"audit_action", AuditActionEncryptionFailed,
+			"failure_stage", FailureStageKeyValidation,
 			"timestamp", time.Now().UTC().Format(time.RFC3339))
 		return fmt.Errorf("KMS key validation failed for %s: %w", s.config.DefaultKMSKeyAlias, err)
 	}
@@ -144,7 +179,7 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 		"kms_key_arn", keyInfo.Arn,
 		"key_state", keyInfo.KeyState,
 		"key_region", keyInfo.Region,
-		"audit_action", "key_validation_success")
+		"audit_action", AuditActionKeyValidationSuccess)
 
 	// Step 2: Verify key policies allow CloudWatch Logs service
 	if err := s.validateKMSKeyPolicyForCloudWatchLogs(ctx, keyInfo.KeyId); err != nil {
@@ -152,8 +187,8 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 			"log_group", logGroupName,
 			"kms_key_id", keyInfo.KeyId,
 			"error", err,
-			"audit_action", "encryption_failed",
-			"failure_stage", "policy_validation",
+			"audit_action", AuditActionEncryptionFailed,
+			"failure_stage", FailureStagePolicyValidation,
 			"timestamp", time.Now().UTC().Format(time.RFC3339))
 		return fmt.Errorf("KMS key policy validation failed for %s: %w", keyInfo.KeyId, err)
 	}
@@ -161,7 +196,7 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 	slog.Info("KMS key policy validation successful",
 		"log_group", logGroupName,
 		"kms_key_id", keyInfo.KeyId,
-		"audit_action", "policy_validation_success")
+		"audit_action", AuditActionPolicyValidationSuccess)
 
 	// Step 3: Apply encryption with proper error handling
 	if err := s.associateKMSKeyWithRetry(ctx, logGroupName, keyInfo.KeyId); err != nil {
@@ -170,8 +205,8 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 			"kms_key_id", keyInfo.KeyId,
 			"kms_key_arn", keyInfo.Arn,
 			"error", err,
-			"audit_action", "encryption_failed",
-			"failure_stage", "key_association",
+			"audit_action", AuditActionEncryptionFailed,
+			"failure_stage", FailureStageKeyAssociation,
 			"timestamp", time.Now().UTC().Format(time.RFC3339))
 		return fmt.Errorf("failed to associate KMS key with log group %s: %w", logGroupName, err)
 	}
@@ -186,7 +221,7 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 		"current_region", s.getCurrentRegion(),
 		"is_cross_region", keyInfo.Region != s.getCurrentRegion(),
 		"operation", "associate_kms_key",
-		"audit_action", "encryption_success",
+		"audit_action", AuditActionEncryptionSuccess,
 		"security_enhancement", "log_group_encrypted",
 		"compliance_status", "encryption_applied",
 		"timestamp", time.Now().UTC().Format(time.RFC3339))
@@ -280,7 +315,7 @@ func (s *ComplianceService) ValidateKMSKeyComprehensively(ctx context.Context, k
 		"is_cross_region", report.IsCrossRegion,
 		"validation_errors", len(report.ValidationErrors),
 		"validation_warnings", len(report.ValidationWarnings),
-		"audit_action", "comprehensive_kms_validation")
+		"audit_action", AuditActionComprehensiveKMSValidation)
 
 	return report, nil
 }
@@ -338,8 +373,8 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 				"kms_key_alias", keyAlias,
 				"current_region", s.getCurrentRegion(),
 				"error", err,
-				"audit_action", "key_validation_failed",
-				"failure_reason", "key_not_found")
+				"audit_action", AuditActionKeyValidationFailed,
+				"failure_reason", FailureReasonKeyNotFound)
 			return nil, fmt.Errorf("KMS key not found: %s. Please ensure the key exists and is accessible in region %s", keyAlias, s.getCurrentRegion())
 		}
 		if isKMSAccessDeniedError(err) {
@@ -348,8 +383,8 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 				"kms_key_alias", keyAlias,
 				"current_region", s.getCurrentRegion(),
 				"error", err,
-				"audit_action", "key_validation_failed",
-				"failure_reason", "access_denied")
+				"audit_action", AuditActionKeyValidationFailed,
+				"failure_reason", FailureReasonAccessDenied)
 			return nil, fmt.Errorf("access denied to KMS key: %s. Please ensure proper IAM permissions are configured for region %s", keyAlias, s.getCurrentRegion())
 		}
 
@@ -358,16 +393,16 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 			"kms_key_alias", keyAlias,
 			"current_region", s.getCurrentRegion(),
 			"error", err,
-			"audit_action", "key_validation_failed",
-			"failure_reason", "general_error")
+			"audit_action", AuditActionKeyValidationFailed,
+			"failure_reason", FailureReasonGeneralError)
 		return nil, fmt.Errorf("failed to describe KMS key %s in region %s: %w", keyAlias, s.getCurrentRegion(), err)
 	}
 
 	if result.KeyMetadata == nil {
 		slog.Error("Invalid KMS key metadata received",
 			"kms_key_alias", keyAlias,
-			"audit_action", "key_validation_failed",
-			"failure_reason", "invalid_metadata")
+			"audit_action", AuditActionKeyValidationFailed,
+			"failure_reason", FailureReasonInvalidMetadata)
 		return nil, fmt.Errorf("invalid KMS key metadata for %s", keyAlias)
 	}
 
@@ -377,15 +412,15 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 	if keyMetadata.KeyId == nil {
 		slog.Error("KMS key ID missing in metadata",
 			"kms_key_alias", keyAlias,
-			"audit_action", "key_validation_failed",
-			"failure_reason", "missing_key_id")
+			"audit_action", AuditActionKeyValidationFailed,
+			"failure_reason", FailureReasonMissingKeyID)
 		return nil, fmt.Errorf("KMS key ID is missing for %s", keyAlias)
 	}
 	if keyMetadata.Arn == nil {
 		slog.Error("KMS key ARN missing in metadata",
 			"kms_key_alias", keyAlias,
-			"audit_action", "key_validation_failed",
-			"failure_reason", "missing_key_arn")
+			"audit_action", AuditActionKeyValidationFailed,
+			"failure_reason", FailureReasonMissingKeyARN)
 		return nil, fmt.Errorf("KMS key ARN is missing for %s", keyAlias)
 	}
 
@@ -406,7 +441,7 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 				"kms_key_alias", keyAlias,
 				"key_region", keyInfo.Region,
 				"current_region", currentRegion,
-				"audit_action", "cross_region_key_usage",
+				"audit_action", AuditActionCrossRegionKeyUsage,
 				"note", "Using cross-region KMS key - ensure proper permissions and network access")
 		}
 	}
@@ -418,8 +453,8 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 			"kms_key_id", keyInfo.KeyId,
 			"key_state", keyInfo.KeyState,
 			"error", err,
-			"audit_action", "key_validation_failed",
-			"failure_reason", "unusable_key_state")
+			"audit_action", AuditActionKeyValidationFailed,
+			"failure_reason", FailureReasonUnusableKeyState)
 		return nil, fmt.Errorf("KMS key %s is not in a usable state: %w", keyAlias, err)
 	}
 
@@ -432,7 +467,7 @@ func (s *ComplianceService) validateKMSKeyAccessibility(ctx context.Context, key
 		"key_region", keyInfo.Region,
 		"current_region", s.getCurrentRegion(),
 		"is_cross_region", keyInfo.Region != s.getCurrentRegion(),
-		"audit_action", "key_validation_success",
+		"audit_action", AuditActionKeyValidationSuccess,
 		"validation_timestamp", time.Now().UTC().Format(time.RFC3339))
 
 	return keyInfo, nil
@@ -535,12 +570,12 @@ func (s *ComplianceService) validateKMSKeyPolicyForCloudWatchLogs(ctx context.Co
 		slog.Warn("KMS key policy may not include CloudWatch Logs service access",
 			"kms_key_id", keyId,
 			"note", "Ensure the key policy allows the CloudWatch Logs service to use this key",
-			"audit_action", "policy_validation_warning")
+			"audit_action", AuditActionPolicyValidationWarning)
 	} else {
 		slog.Info("KMS key policy validation successful",
 			"kms_key_id", keyId,
 			"cloudwatch_logs_access", "confirmed",
-			"audit_action", "policy_validation_success")
+			"audit_action", AuditActionPolicyValidationSuccess)
 	}
 
 	return nil
