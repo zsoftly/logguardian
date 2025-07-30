@@ -21,7 +21,7 @@ The Lambda now safely applies KMS encryption using pre-configured keys with the 
 {
   "type": "config-rule-evaluation",
   "configRuleName": "cloudwatch-logs-compliance",
-  "region": "us-east-1",
+  "region": "ca-central-1",
   "batchSize": 5
 }
 ```
@@ -37,7 +37,7 @@ The Lambda now safely applies KMS encryption using pre-configured keys with the 
       "resourceType": "AWS::Logs::LogGroup",
       "resourceId": "/aws/lambda/my-function",
       "resourceName": "/aws/lambda/my-function",
-      "awsRegion": "us-east-1",
+      "awsRegion": "ca-central-1",
       "accountId": "123456789012"
     }
   }
@@ -55,8 +55,8 @@ DEFAULT_RETENTION_DAYS=365                       # Default retention in days
 DRY_RUN=false                                    # Set to true for testing
 
 # AWS Configuration  
-AWS_REGION=us-east-1                             # AWS region
-AWS_DEFAULT_REGION=us-east-1                     # Fallback region
+AWS_REGION=ca-central-1                             # AWS region
+AWS_DEFAULT_REGION=ca-central-1                     # Fallback region
 ```
 
 ## KMS Key Policy Requirements
@@ -73,7 +73,7 @@ Your KMS key policy must allow the CloudWatch Logs service to use the key:
       "Principal": {
         "Service": [
           "logs.amazonaws.com",
-          "logs.us-east-1.amazonaws.com"
+          "logs.ca-central-1.amazonaws.com"
         ]
       },
       "Action": [
@@ -86,7 +86,7 @@ Your KMS key policy must allow the CloudWatch Logs service to use the key:
       "Resource": "*",
       "Condition": {
         "ArnEquals": {
-          "kms:EncryptionContext:aws:logs:arn": "arn:aws:logs:us-east-1:123456789012:log-group:*"
+          "kms:EncryptionContext:aws:logs:arn": "arn:aws:logs:ca-central-1:123456789012:log-group:*"
         }
       }
     }
@@ -113,7 +113,7 @@ The Lambda provides comprehensive audit logging for all KMS operations:
   "msg": "Successfully applied KMS encryption",
   "log_group": "/aws/lambda/my-function",
   "kms_key_id": "12345678-1234-1234-1234-123456789012",
-  "kms_key_arn": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+  "kms_key_arn": "arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012",
   "operation": "associate_kms_key",
   "timestamp": "2025-07-30T12:00:00Z"
 }
@@ -129,7 +129,7 @@ The Lambda handles various KMS-related errors gracefully:
   "level": "ERROR",
   "msg": "KMS key not found during validation",
   "kms_key_alias": "alias/nonexistent-key",
-  "current_region": "us-east-1",
+  "current_region": "ca-central-1",
   "audit_action": "key_validation_failed",
   "failure_reason": "key_not_found"
 }
@@ -141,7 +141,7 @@ The Lambda handles various KMS-related errors gracefully:
   "level": "ERROR", 
   "msg": "KMS key access denied during validation",
   "kms_key_alias": "alias/restricted-key",
-  "current_region": "us-east-1",
+  "current_region": "ca-central-1",
   "audit_action": "key_validation_failed",
   "failure_reason": "access_denied"
 }
@@ -174,8 +174,8 @@ For multi-region deployments, the Lambda can be configured with region-specific 
 
 ```bash
 # Region-specific KMS keys
-KMS_KEY_ALIAS_US_EAST_1=alias/logs-us-east-1
-KMS_KEY_ALIAS_US_WEST_2=alias/logs-us-west-2
+KMS_KEY_ALIAS_US_EAST_1=alias/logs-ca-central-1
+KMS_KEY_ALIAS_US_WEST_2=alias/logs-ca-west-1
 KMS_KEY_ALIAS_EU_WEST_1=alias/logs-eu-west-1
 ```
 

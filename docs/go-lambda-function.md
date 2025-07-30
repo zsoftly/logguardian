@@ -60,7 +60,7 @@ KMS_KEY_ALIAS=alias/cloudwatch-logs-compliance
 DEFAULT_RETENTION_DAYS=365
 
 # Optional
-SUPPORTED_REGIONS=us-east-1,us-west-2,eu-west-1
+SUPPORTED_REGIONS=ca-central-1,ca-west-1,us-east-2
 DRY_RUN=false
 BATCH_LIMIT=100
 
@@ -158,7 +158,7 @@ The function includes several memory optimization features:
 {
   "KMS_KEY_ALIAS": "alias/cloudwatch-logs-compliance",
   "DEFAULT_RETENTION_DAYS": "365",
-  "SUPPORTED_REGIONS": "us-east-1,us-west-2"
+  "SUPPORTED_REGIONS": "ca-central-1,ca-west-1"
 }
 ```
 
@@ -168,7 +168,7 @@ The function includes several memory optimization features:
 {
   "KMS_KEY_ALIAS": "alias/cloudwatch-logs-compliance",
   "DEFAULT_RETENTION_DAYS": "365",
-  "SUPPORTED_REGIONS": "us-east-1,us-west-2,eu-west-1",
+  "SUPPORTED_REGIONS": "ca-central-1,ca-west-1,us-east-2",
   "KMS_KEY_ALIAS_eu_west_1": "alias/cloudwatch-logs-eu",
   "DEFAULT_RETENTION_DAYS_eu_west_1": "180"
 }

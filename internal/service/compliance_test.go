@@ -29,7 +29,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "apply both encryption and retention",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  true,
 			},
@@ -41,7 +41,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "apply only encryption",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  false,
 			},
@@ -53,7 +53,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "apply only retention",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: false,
 				MissingRetention:  true,
 			},
@@ -65,7 +65,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "no remediation needed",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: false,
 				MissingRetention:  false,
 			},
@@ -77,7 +77,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "dry run mode",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  true,
 			},
@@ -90,7 +90,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "kms key validation failure should fail",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  false,
 			},
@@ -101,7 +101,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "kms key disabled should fail",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  false,
 			},
@@ -112,7 +112,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "logs error should fail",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: false,
 				MissingRetention:  true,
 			},
@@ -261,7 +261,7 @@ func (m *MockKMSClient) DescribeKey(ctx context.Context, params *kms.DescribeKey
 	return &kms.DescribeKeyOutput{
 		KeyMetadata: &kmstypes.KeyMetadata{
 			KeyId:    aws.String(keyId),
-			Arn:      aws.String(fmt.Sprintf("arn:aws:kms:us-east-1:123456789012:key/%s", keyId)),
+			Arn:      aws.String(fmt.Sprintf("arn:aws:kms:ca-central-1:123456789012:key/%s", keyId)),
 			KeyState: keyState,
 		},
 	}, nil
@@ -315,7 +315,7 @@ func (m *MockKMSClient) ListGrants(ctx context.Context, params *kms.ListGrantsIn
 func TestNewComplianceService(t *testing.T) {
 	// Create a basic AWS config (this won't actually make AWS calls in tests)
 	cfg := aws.Config{
-		Region: "us-east-1",
+		Region: "ca-central-1",
 	}
 
 	service := NewComplianceService(cfg)

@@ -81,7 +81,7 @@ func NewComplianceService(cfg aws.Config) *ComplianceService {
 	// Load configuration from environment variables
 	region := getEnvOrDefault("AWS_REGION", "")
 	if region == "" {
-		region = getEnvOrDefault("AWS_DEFAULT_REGION", "us-east-1")
+		region = getEnvOrDefault("AWS_DEFAULT_REGION", "ca-central-1")
 	}
 	config := ServiceConfig{
 		DefaultKMSKeyAlias:   getEnvOrDefault("KMS_KEY_ALIAS", "alias/cloudwatch-logs-compliance"),
@@ -660,6 +660,24 @@ func (s *ComplianceService) getCurrentRegion() string {
 	return s.config.Region
 }
 
+// checkAPIErrorCode is a helper function to check if an error matches any of the provided error codes
+func checkAPIErrorCode(err error, errorCodes []string) bool {
+	if err == nil {
+		return false
+	}
+
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		errorCode := apiErr.ErrorCode()
+		for _, code := range errorCodes {
+			if errorCode == code {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // KMS-specific error checking functions using proper AWS SDK error types
 func isKMSKeyNotFoundError(err error) bool {
 	if err == nil {
@@ -674,17 +692,13 @@ func isKMSKeyNotFoundError(err error) bool {
 		return true
 	}
 
-	// Also check for generic API error with specific error codes
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
-		errorCode := apiErr.ErrorCode()
-		return errorCode == "NotFoundException" ||
-			errorCode == "InvalidKeyId.NotFound" ||
-			errorCode == "InvalidKeyId.Malformed" ||
-			errorCode == "KeyUnavailableException"
-	}
-
-	return false
+	// Check for generic API error with specific error codes
+	return checkAPIErrorCode(err, []string{
+		"NotFoundException",
+		"InvalidKeyId.NotFound",
+		"InvalidKeyId.Malformed",
+		"KeyUnavailableException",
+	})
 }
 
 func isKMSAccessDeniedError(err error) bool {
@@ -694,16 +708,12 @@ func isKMSAccessDeniedError(err error) bool {
 
 	// Check for KMS access denied exception types using errors.As with smithy.APIError
 	// This provides consistent error handling across different AWS SDK error types
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
-		errorCode := apiErr.ErrorCode()
-		return errorCode == "AccessDeniedException" ||
-			errorCode == "UnauthorizedOperation" ||
-			errorCode == "Forbidden" ||
-			errorCode == "AccessDenied"
-	}
-
-	return false
+	return checkAPIErrorCode(err, []string{
+		"AccessDeniedException",
+		"UnauthorizedOperation",
+		"Forbidden",
+		"AccessDenied",
+	})
 }
 
 func isInvalidLogGroupError(err error) bool {
@@ -719,16 +729,12 @@ func isInvalidLogGroupError(err error) bool {
 		return true
 	}
 
-	// Also check for generic API error with specific error codes
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
-		errorCode := apiErr.ErrorCode()
-		return errorCode == "ResourceNotFoundException" ||
-			errorCode == "InvalidLogGroupName" ||
-			errorCode == "InvalidParameterValue"
-	}
-
-	return false
+	// Check for generic API error with specific error codes
+	return checkAPIErrorCode(err, []string{
+		"ResourceNotFoundException",
+		"InvalidLogGroupName",
+		"InvalidParameterValue",
+	})
 }
 
 // Utility functions for environment variable handling
@@ -751,6 +757,15 @@ func getEnvAsInt32OrDefault(key string, defaultValue int32) int32 {
 func getEnvAsBoolOrDefault(key string, defaultValue bool) bool {
 	if valueStr := os.Getenv(key); valueStr != "" {
 		if value, err := strconv.ParseBool(valueStr); err == nil {
+			return value
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsIntOrDefault(key string, defaultValue int) int {
+	if valueStr := os.Getenv(key); valueStr != "" {
+		if value, err := strconv.Atoi(valueStr); err == nil {
 			return value
 		}
 	}

@@ -9,8 +9,8 @@
       "resourceType": "AWS::Logs::LogGroup",
       "resourceId": "/aws/lambda/my-test-function",
       "resourceName": "/aws/lambda/my-test-function",
-      "awsRegion": "us-east-1",
-      "availabilityZone": "us-east-1a",
+      "awsRegion": "ca-central-1",
+      "availabilityZone": "ca-central-1a",
       "configurationStateMd5Hash": "abc123def456",
       "resourceCreationTime": "2024-01-15T10:00:00.000Z",
       "configuration": {
@@ -35,6 +35,6 @@
     "kmsKeyAliasPattern": "alias/cloudwatch-logs-*"
   },
   "accountId": "123456789012",
-  "configRuleArn": "arn:aws:config:us-east-1:123456789012:config-rule/config-rule-abc123",
+  "configRuleArn": "arn:aws:config:ca-central-1:123456789012:config-rule/config-rule-abc123",
   "executionRoleArn": "arn:aws:iam::123456789012:role/aws-config-role"
 }

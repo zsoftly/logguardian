@@ -8,7 +8,7 @@ This file contains examples of how to invoke the LogGuardian Lambda function to 
 {
   "type": "config-rule-evaluation",
   "configRuleName": "cloudwatch-log-group-encrypted",
-  "region": "us-east-1",
+  "region": "ca-central-1",
   "batchSize": 20
 }
 ```
@@ -32,7 +32,7 @@ This file contains examples of how to invoke the LogGuardian Lambda function to 
       "configurationItem": {
         "resourceType": "AWS::Logs::LogGroup",
         "resourceName": "/aws/lambda/my-function",
-        "awsRegion": "us-east-1",
+        "awsRegion": "ca-central-1",
         "awsAccountId": "123456789012",
         "configurationItemStatus": "ResourceDiscovered",
         "configuration": {
@@ -56,7 +56,7 @@ This file contains examples of how to invoke the LogGuardian Lambda function to 
     "configurationItem": {
       "resourceType": "AWS::Logs::LogGroup",
       "resourceName": "/aws/lambda/legacy-function",
-      "awsRegion": "us-east-1",
+      "awsRegion": "ca-central-1",
       "awsAccountId": "123456789012",
       "configurationItemStatus": "ResourceDiscovered",
       "configuration": {
@@ -78,7 +78,7 @@ aws lambda invoke \
   --payload '{
     "type": "config-rule-evaluation",
     "configRuleName": "cloudwatch-log-group-encrypted",
-    "region": "us-east-1",
+    "region": "ca-central-1",
     "batchSize": 15
   }' \
   response.json
@@ -99,8 +99,8 @@ cat response.json
       "Targets": [
         {
           "Id": "1",
-          "Arn": "arn:aws:lambda:us-east-1:123456789012:function:logguardian-compliance",
-          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"cloudwatch-log-group-encrypted\",\"region\":\"us-east-1\",\"batchSize\":25}"
+          "Arn": "arn:aws:lambda:ca-central-1:123456789012:function:logguardian-compliance",
+          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"cloudwatch-log-group-encrypted\",\"region\":\"ca-central-1\",\"batchSize\":25}"
         }
       ]
     }
@@ -112,7 +112,7 @@ cat response.json
 
 ```bash
 # Process different regions with separate invocations
-for region in us-east-1 us-west-2 eu-west-1; do
+for region in ca-central-1 ca-west-1 us-east-2; do
   aws lambda invoke \
     --function-name logguardian-compliance \
     --payload "{
@@ -135,7 +135,7 @@ done
   "body": {
     "message": "Config rule evaluation processing completed",
     "configRule": "cloudwatch-log-group-encrypted",
-    "region": "us-east-1",
+    "region": "ca-central-1",
     "totalProcessed": 45,
     "successCount": 43,
     "failureCount": 2,

@@ -230,7 +230,7 @@ For local development, set these environment variables:
 ```bash
 export KMS_KEY_ALIAS="alias/cloudwatch-logs-compliance"
 export DEFAULT_RETENTION_DAYS="365"
-export SUPPORTED_REGIONS="us-east-1,us-west-2"
+export SUPPORTED_REGIONS="ca-central-1,ca-west-1"
 export DRY_RUN="true"  # For safe testing
 ```
 

@@ -222,7 +222,7 @@ module "logguardian" {
   schedule = "weekly"
   
   # Multi-region support
-  regions = ["us-east-1", "us-west-2", "eu-west-1"]
+  regions = ["ca-central-1", "ca-west-1", "us-east-2"]
   
   # Notification settings
   notification_email = "compliance@yourcompany.com"

@@ -69,8 +69,8 @@ LogGuardian provides comprehensive structured logging for all KMS operations for
   "level": "WARN",
   "msg": "KMS key is in different region than current",
   "kms_key_alias": "alias/cloudwatch-logs-compliance", 
-  "key_region": "us-west-2",
-  "current_region": "us-east-1",
+  "key_region": "ca-west-1",
+  "current_region": "ca-central-1",
   "audit_action": "cross_region_key_usage"
 }
 ```
