@@ -1,0 +1,225 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# Build directories
+build/
+dist/
+
+# Lambda deployment packages
+*.zip
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Logs
+*.log
+logs/
+
+# Coverage reports
+coverage.out
+coverage.html
+*.cover
+*.coverprofile
+
+# Profiling files
+*.prof
+mem.prof
+cpu.prof
+profile.out
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# AWS credentials and config (should never be committed)
+.aws/
+aws-credentials
+*.pem
+*.key
+*.crt
+
+# Configuration files with secrets
+config/production.yaml
+config/staging.yaml
+config/development.yaml
+config/local.yaml
+*.secret.yaml
+*.secrets.yaml
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+
+# CloudFormation generated files
+.cfn/
+*.cfn-output
+
+# Docker files
+.dockerignore
+
+# Local testing files
+testdata/local/
+*.local.json
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Editor backup files
+.#*
+\#*#
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Lambda function artifacts
+bootstrap
+main
+function.zip
+deployment-package.zip
+
+# AWS SAM
+.aws-sam/
+samconfig.toml
+
+# Node.js (if any frontend tooling is added)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+
+# Python (if any Python tooling is added)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.env
+venv/
+env/
+ENV/
+
+# Kubernetes
+*.kubeconfig
+
+# Helm
+charts/*.tgz
+
+# Local development overrides
+docker-compose.override.yml
+.override.yml
+
+# Documentation build artifacts
+docs/_build/
+docs/.doctrees/
+
+# GitHub Codespaces
+.devcontainer/devcontainer.json
+
+# JetBrains Fleet
+.fleet/
