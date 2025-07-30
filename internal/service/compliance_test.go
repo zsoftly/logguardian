@@ -15,14 +15,14 @@ import (
 
 func TestComplianceService_RemediateLogGroup(t *testing.T) {
 	tests := []struct {
-		name               string
-		compliance         logguardiantypes.ComplianceResult
-		dryRun            bool
-		expectEncryption  bool
-		expectRetention   bool
-		kmsError          error
-		logsError         error
-		expectedSuccess   bool
+		name             string
+		compliance       logguardiantypes.ComplianceResult
+		dryRun           bool
+		expectEncryption bool
+		expectRetention  bool
+		kmsError         error
+		logsError        error
+		expectedSuccess  bool
 	}{
 		{
 			name: "apply both encryption and retention",
@@ -113,7 +113,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock clients
 			mockLogsClient := &MockCloudWatchLogsClient{
-				AssociateKmsKeyError:   tt.kmsError,
+				AssociateKmsKeyError:    tt.kmsError,
 				PutRetentionPolicyError: tt.logsError,
 			}
 			mockKmsClient := &MockKMSClient{
@@ -127,7 +127,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 				config: ServiceConfig{
 					DefaultKMSKeyAlias:   "alias/test-key",
 					DefaultRetentionDays: 365,
-					DryRun:              tt.dryRun,
+					DryRun:               tt.dryRun,
 				},
 			}
 
@@ -180,10 +180,10 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 
 // MockCloudWatchLogsClient implements the CloudWatch Logs client interface for testing
 type MockCloudWatchLogsClient struct {
-	AssociateKmsKeyCalled     bool
-	AssociateKmsKeyError      error
-	PutRetentionPolicyCalled  bool
-	PutRetentionPolicyError   error
+	AssociateKmsKeyCalled    bool
+	AssociateKmsKeyError     error
+	PutRetentionPolicyCalled bool
+	PutRetentionPolicyError  error
 }
 
 func (m *MockCloudWatchLogsClient) AssociateKmsKey(ctx context.Context, params *cloudwatchlogs.AssociateKmsKeyInput, optFns ...func(*cloudwatchlogs.Options)) (*cloudwatchlogs.AssociateKmsKeyOutput, error) {
@@ -212,7 +212,7 @@ func (m *MockCloudWatchLogsClient) DescribeLogGroups(ctx context.Context, params
 type MockKMSClient struct {
 	DescribeKeyCalled bool
 	DescribeKeyError  error
-	KeyId            string
+	KeyId             string
 }
 
 func (m *MockKMSClient) DescribeKey(ctx context.Context, params *kms.DescribeKeyInput, optFns ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
@@ -242,7 +242,7 @@ func TestNewComplianceService(t *testing.T) {
 	service := NewComplianceService(cfg)
 
 	if service == nil {
-		t.Error("Expected service to be created")
+		t.Fatal("Expected service to be created, got nil")
 	}
 
 	if service.config.DefaultKMSKeyAlias == "" {

@@ -24,7 +24,7 @@ type ComplianceService struct {
 type ServiceConfig struct {
 	DefaultKMSKeyAlias   string
 	DefaultRetentionDays int32
-	DryRun              bool
+	DryRun               bool
 }
 
 // NewComplianceService creates a new compliance service
@@ -32,8 +32,8 @@ func NewComplianceService(cfg aws.Config) *ComplianceService {
 	// Load configuration from environment variables
 	config := ServiceConfig{
 		DefaultKMSKeyAlias:   getEnvOrDefault("KMS_KEY_ALIAS", "alias/cloudwatch-logs-compliance"),
-		DefaultRetentionDays: int32(getEnvAsIntOrDefault("DEFAULT_RETENTION_DAYS", 365)),
-		DryRun:              getEnvAsBoolOrDefault("DRY_RUN", false),
+		DefaultRetentionDays: getEnvAsInt32OrDefault("DEFAULT_RETENTION_DAYS", 365),
+		DryRun:               getEnvAsBoolOrDefault("DRY_RUN", false),
 	}
 
 	return &ComplianceService{
@@ -75,7 +75,7 @@ func (s *ComplianceService) RemediateLogGroup(ctx context.Context, compliance ty
 			return result, err
 		}
 		result.RetentionApplied = true
-		slog.Info("Applied retention policy", 
+		slog.Info("Applied retention policy",
 			"log_group", compliance.LogGroupName,
 			"retention_days", s.config.DefaultRetentionDays)
 	}
@@ -168,10 +168,10 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-func getEnvAsIntOrDefault(key string, defaultValue int) int {
+func getEnvAsInt32OrDefault(key string, defaultValue int32) int32 {
 	if valueStr := os.Getenv(key); valueStr != "" {
-		if value, err := strconv.Atoi(valueStr); err == nil {
-			return value
+		if value, err := strconv.ParseInt(valueStr, 10, 32); err == nil {
+			return int32(value)
 		}
 	}
 	return defaultValue

@@ -95,7 +95,7 @@ func (cp *ClientPool) Cleanup() {
 // MemoryStats provides memory usage statistics
 type MemoryStats struct {
 	AllocMB      uint64 // Current memory allocation in MB
-	TotalAllocMB uint64 // Total memory allocated in MB  
+	TotalAllocMB uint64 // Total memory allocated in MB
 	SysMB        uint64 // System memory obtained from OS in MB
 	NumGCRuns    uint32 // Number of GC runs
 	HeapObjects  uint64 // Number of objects in heap
@@ -119,7 +119,7 @@ func GetMemoryStats() MemoryStats {
 func OptimizeMemory() {
 	// Force garbage collection
 	runtime.GC()
-	
+
 	// Return memory to OS if possible
 	runtime.GC()
 	runtime.GC() // Call twice for better effect
@@ -129,23 +129,22 @@ func OptimizeMemory() {
 func WithMemoryOptimization(ctx context.Context, fn func(context.Context) error) error {
 	// Get baseline memory stats
 	initialStats := GetMemoryStats()
-	
+
 	// Execute function
 	err := fn(ctx)
-	
+
 	// Optimize memory after execution
 	OptimizeMemory()
-	
+
 	// Get final memory stats
 	finalStats := GetMemoryStats()
-	
+
 	// Log memory usage if significant
-	memoryDelta := int64(finalStats.AllocMB) - int64(initialStats.AllocMB)
-	if memoryDelta > 10 { // Only log if > 10MB difference
-		// Could add logging here if needed for debugging
-		_ = memoryDelta // Avoid unused variable warning
+	if finalStats.AllocMB > initialStats.AllocMB+10 || initialStats.AllocMB > finalStats.AllocMB+10 {
+		// Memory usage changed significantly - could add logging here if needed for debugging
+		_ = finalStats // Mark as used to avoid unused variable warning
 	}
-	
+
 	return err
 }
 
@@ -164,7 +163,8 @@ func NewStringPool() *StringPool {
 	return &StringPool{
 		pool: sync.Pool{
 			New: func() interface{} {
-				return make([]byte, 0, 1024) // 1KB initial capacity
+				buf := make([]byte, 0, 1024) // 1KB initial capacity
+				return &buf
 			},
 		},
 	}
@@ -172,13 +172,17 @@ func NewStringPool() *StringPool {
 
 // GetBuffer gets a buffer from the pool
 func (sp *StringPool) GetBuffer() []byte {
-	return sp.pool.Get().([]byte)[:0] // Reset length but keep capacity
+	bufPtr := sp.pool.Get().(*[]byte)
+	buf := *bufPtr
+	return buf[:0] // Reset length but keep capacity
 }
 
 // PutBuffer returns a buffer to the pool
 func (sp *StringPool) PutBuffer(buf []byte) {
 	if cap(buf) < 64*1024 { // Don't pool buffers larger than 64KB
-		sp.pool.Put(buf)
+		// Reset buffer length and return to pool
+		buf = buf[:0]
+		sp.pool.Put(&buf)
 	}
 }
 

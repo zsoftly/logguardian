@@ -54,7 +54,7 @@ func (h *ComplianceHandler) HandleConfigEvent(ctx context.Context, event json.Ra
 
 	// Check compliance status
 	compliance := h.analyzeCompliance(configItem)
-	
+
 	slog.Info("Compliance analysis completed",
 		"log_group", compliance.LogGroupName,
 		"missing_encryption", compliance.MissingEncryption,
@@ -86,7 +86,7 @@ func (h *ComplianceHandler) HandleConfigEvent(ctx context.Context, event json.Ra
 // analyzeCompliance checks what remediation is needed for a log group
 func (h *ComplianceHandler) analyzeCompliance(configItem types.ConfigurationItem) types.ComplianceResult {
 	config := configItem.Configuration
-	
+
 	return types.ComplianceResult{
 		LogGroupName:      config.LogGroupName,
 		Region:            configItem.AwsRegion,

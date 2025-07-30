@@ -98,7 +98,7 @@ func (mrs *MultiRegionComplianceService) LoadRegionsFromConfig(ctx context.Conte
 		// You could customize this per region by reading region-specific env vars
 		serviceConfig := ServiceConfig{
 			DefaultKMSKeyAlias:   getEnvOrDefault(fmt.Sprintf("KMS_KEY_ALIAS_%s", region), getEnvOrDefault("KMS_KEY_ALIAS", "alias/cloudwatch-logs-compliance")),
-			DefaultRetentionDays: int32(getEnvAsIntOrDefault(fmt.Sprintf("DEFAULT_RETENTION_DAYS_%s", region), getEnvAsIntOrDefault("DEFAULT_RETENTION_DAYS", 365))),
+			DefaultRetentionDays: getEnvAsInt32OrDefault(fmt.Sprintf("DEFAULT_RETENTION_DAYS_%s", region), getEnvAsInt32OrDefault("DEFAULT_RETENTION_DAYS", 365)),
 			DryRun:               getEnvAsBoolOrDefault("DRY_RUN", false),
 		}
 

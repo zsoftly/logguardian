@@ -16,15 +16,15 @@ type ConfigEvent struct {
 
 // ConfigRuleInvokingEvent contains the resource information
 type ConfigRuleInvokingEvent struct {
-	ConfigurationItem            ConfigurationItem `json:"configurationItem"`
-	NotificationCreationTime     time.Time        `json:"notificationCreationTime"`
-	MessageType                  string           `json:"messageType"`
-	RecordVersion               string           `json:"recordVersion"`
+	ConfigurationItem        ConfigurationItem `json:"configurationItem"`
+	NotificationCreationTime time.Time         `json:"notificationCreationTime"`
+	MessageType              string            `json:"messageType"`
+	RecordVersion            string            `json:"recordVersion"`
 }
 
 // ConfigurationItem represents a CloudWatch Log Group
 type ConfigurationItem struct {
-	ConfigurationItemVersion     string                 `json:"configurationItemVersion"`
+	ConfigurationItemVersion     string                `json:"configurationItemVersion"`
 	ConfigurationItemCaptureTime time.Time             `json:"configurationItemCaptureTime"`
 	ConfigurationStateId         int64                 `json:"configurationStateId"`
 	AwsAccountId                 string                `json:"awsAccountId"`
@@ -41,20 +41,20 @@ type ConfigurationItem struct {
 
 // LogGroupConfiguration represents CloudWatch Log Group configuration
 type LogGroupConfiguration struct {
-	LogGroupName       string `json:"logGroupName"`
-	RetentionInDays    *int32 `json:"retentionInDays"`
-	KmsKeyId           string `json:"kmsKeyId"`
-	CreationTime       int64  `json:"creationTime"`
-	MetricFilterCount  int32  `json:"metricFilterCount"`
+	LogGroupName         string `json:"logGroupName"`
+	RetentionInDays      *int32 `json:"retentionInDays"`
+	KmsKeyId             string `json:"kmsKeyId"`
+	CreationTime         int64  `json:"creationTime"`
+	MetricFilterCount    int32  `json:"metricFilterCount"`
 	DataProtectionStatus string `json:"dataProtectionStatus"`
-	LogGroupClass      string `json:"logGroupClass"`
+	LogGroupClass        string `json:"logGroupClass"`
 }
 
 // ComplianceResult represents the result of compliance checking
 type ComplianceResult struct {
-	LogGroupName    string
-	Region          string
-	AccountId       string
+	LogGroupName      string
+	Region            string
+	AccountId         string
 	MissingEncryption bool
 	MissingRetention  bool
 	CurrentRetention  *int32

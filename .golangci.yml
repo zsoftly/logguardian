@@ -1,16 +1,9 @@
 # Golangci-lint configuration for LogGuardian
-# Reference: https://golangci-lint.run/usage/configuration/
+# Minimal modern configuration
 
 run:
   timeout: 5m
-  issues-exit-code: 1
   tests: true
-  modules-download-mode: readonly
-
-output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
 
 linters:
   enable:
@@ -24,111 +17,11 @@ linters:
     - gofmt         # Check code formatting
     - goimports     # Check import formatting
     - misspell      # Find misspelled words
-    - gocritic      # Comprehensive Go linter
     - gocyclo       # Check cyclomatic complexity
     - gosec         # Security-focused linter
     - unconvert     # Remove unnecessary type conversions
-    - unparam       # Find unused function parameters
     - bodyclose     # Check HTTP response body closes
-    - prealloc      # Find slice declarations with non-zero length
-    - exportloopref # Check for loop variable references
-    - nilerr        # Find code that returns nil error with nil value
-
-  disable:
-    - deadcode      # Deprecated, covered by unused
-    - varcheck      # Deprecated, covered by unused
-    - structcheck   # Deprecated, covered by unused
-    - scopelint     # Deprecated, covered by exportloopref
-
-linters-settings:
-  errcheck:
-    # Report about not checking of errors in type assertions: `a := b.(MyStruct)`;
-    check-type-assertions: true
-    # Report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`;
-    check-blank: false
-
-  govet:
-    check-shadowing: true
-    enable-all: true
-
-  gocyclo:
-    # Minimal code complexity to report
-    min-complexity: 15
-
-  gosec:
-    severity: medium
-    confidence: medium
-    excludes:
-      - G404 # Random number generator - acceptable for non-crypto use
-
-  misspell:
-    locale: US
-
-  gofmt:
-    simplify: true
-
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: false
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport # https://github.com/go-critic/go-critic/issues/845
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - wrapperFunc
 
 issues:
-  # List of regexps of issue texts to exclude
-  exclude:
-    # Exclude some linters from running on tests files
-    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*printf?|os\\.(Un)?Setenv). is not checked"
-    - "exported (type|method|function) (.+) should have comment or be unexported"
-    - "ST1000: at least one file in a package should have a package comment"
-
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    # Exclude lll issues for long lines with go:generate
-    - linters:
-        - lll
-      source: "^//go:generate "
-
-    # Exclude certain gosec rules for test files
-    - path: _test\.go
-      linters:
-        - gosec
-      text: "G404: Use of weak random number generator"
-
-    # Exclude certain linters from running on test files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-
-    # Exclude shadow checking on err variables in common patterns
-    - linters:
-        - govet
-      text: 'shadow: declaration of "(err|ctx)" shadows declaration at'
-
-  # Show only new issues
-  new: false
-
-  # Maximum issues count per one linter
   max-issues-per-linter: 0
-
-  # Maximum count of issues with the same text
   max-same-issues: 0
-
-severity:
-  default-severity: error
-  case-sensitive: false

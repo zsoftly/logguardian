@@ -23,16 +23,16 @@ func TestComplianceHandler_HandleConfigEvent(t *testing.T) {
 				AccountId:      "123456789012",
 				ConfigRuleInvokingEvent: types.ConfigRuleInvokingEvent{
 					ConfigurationItem: types.ConfigurationItem{
-						ResourceType:                "AWS::Logs::LogGroup",
-						ResourceName:                "/aws/lambda/test-function",
-						AwsRegion:                   "us-east-1",
-						AwsAccountId:                "123456789012",
-						ConfigurationItemStatus:     "ResourceDiscovered",
+						ResourceType:                 "AWS::Logs::LogGroup",
+						ResourceName:                 "/aws/lambda/test-function",
+						AwsRegion:                    "us-east-1",
+						AwsAccountId:                 "123456789012",
+						ConfigurationItemStatus:      "ResourceDiscovered",
 						ConfigurationItemCaptureTime: time.Now(),
 						Configuration: types.LogGroupConfiguration{
 							LogGroupName:    "/aws/lambda/test-function",
 							RetentionInDays: nil, // Missing retention
-							KmsKeyId:        "",   // Missing encryption
+							KmsKeyId:        "",  // Missing encryption
 						},
 					},
 				},
@@ -81,11 +81,11 @@ func TestComplianceHandler_HandleConfigEvent(t *testing.T) {
 				AccountId:      "123456789012",
 				ConfigRuleInvokingEvent: types.ConfigRuleInvokingEvent{
 					ConfigurationItem: types.ConfigurationItem{
-						ResourceType:                "AWS::Logs::LogGroup",
-						ResourceName:                "/aws/lambda/compliant-function",
-						AwsRegion:                   "us-east-1",
-						AwsAccountId:                "123456789012",
-						ConfigurationItemStatus:     "ResourceDiscovered",
+						ResourceType:                 "AWS::Logs::LogGroup",
+						ResourceName:                 "/aws/lambda/compliant-function",
+						AwsRegion:                    "us-east-1",
+						AwsAccountId:                 "123456789012",
+						ConfigurationItemStatus:      "ResourceDiscovered",
 						ConfigurationItemCaptureTime: time.Now(),
 						Configuration: types.LogGroupConfiguration{
 							LogGroupName:    "/aws/lambda/compliant-function",
@@ -138,8 +138,8 @@ func TestComplianceHandler_analyzeCompliance(t *testing.T) {
 	handler := &ComplianceHandler{}
 
 	tests := []struct {
-		name                  string
-		configItem            types.ConfigurationItem
+		name                      string
+		configItem                types.ConfigurationItem
 		expectedMissingEncryption bool
 		expectedMissingRetention  bool
 	}{
@@ -229,7 +229,7 @@ type MockComplianceService struct {
 
 func (m *MockComplianceService) RemediateLogGroup(ctx context.Context, compliance types.ComplianceResult) (*types.RemediationResult, error) {
 	m.RemediateLogGroupCalled = true
-	
+
 	if m.RemediateLogGroupError != nil {
 		return nil, m.RemediateLogGroupError
 	}
