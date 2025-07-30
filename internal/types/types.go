@@ -137,8 +137,43 @@ type BatchRemediationResult struct {
 // LambdaRequest represents the unified request format for the Lambda
 type LambdaRequest struct {
 	Type           string          `json:"type"`                     // "config-event" or "config-rule-evaluation"
-	ConfigEvent    json.RawMessage `json:"configEvent,omitempty"`    // Contains Config event payload for config-event type requests
+	ConfigEvent    json.RawMessage `json:"configEvent,omitempty"`    // Contains Config event payload for individual Config events
 	ConfigRuleName string          `json:"configRuleName,omitempty"` // For rule evaluation requests
 	Region         string          `json:"region,omitempty"`         // For rule evaluation requests
 	BatchSize      int             `json:"batchSize,omitempty"`      // For rule evaluation requests
+}
+
+// KMSEncryptionResult represents the result of KMS encryption operations
+type KMSEncryptionResult struct {
+	LogGroupName      string    `json:"logGroupName"`
+	KMSKeyAlias       string    `json:"kmsKeyAlias"`
+	KMSKeyId          string    `json:"kmsKeyId"`
+	KMSKeyArn         string    `json:"kmsKeyArn"`
+	KeyRegion         string    `json:"keyRegion"`
+	CurrentRegion     string    `json:"currentRegion"`
+	IsCrossRegion     bool      `json:"isCrossRegion"`
+	EncryptionApplied bool      `json:"encryptionApplied"`
+	Success           bool      `json:"success"`
+	Error             string    `json:"error,omitempty"`
+	ValidationSteps   []string  `json:"validationSteps"`
+	AuditTimestamp    time.Time `json:"auditTimestamp"`
+}
+
+// KMSValidationReport provides comprehensive KMS key validation information
+type KMSValidationReport struct {
+	KeyAlias             string    `json:"keyAlias"`
+	KeyId                string    `json:"keyId"`
+	KeyArn               string    `json:"keyArn"`
+	KeyState             string    `json:"keyState"`
+	KeyRegion            string    `json:"keyRegion"`
+	CurrentRegion        string    `json:"currentRegion"`
+	IsCrossRegion        bool      `json:"isCrossRegion"`
+	KeyExists            bool      `json:"keyExists"`
+	KeyAccessible        bool      `json:"keyAccessible"`
+	PolicyAccessible     bool      `json:"policyAccessible"`
+	CloudWatchLogsAccess bool      `json:"cloudWatchLogsAccess"`
+	ValidationErrors     []string  `json:"validationErrors,omitempty"`
+	ValidationWarnings   []string  `json:"validationWarnings,omitempty"`
+	RecommendedActions   []string  `json:"recommendedActions,omitempty"`
+	ValidationTimestamp  time.Time `json:"validationTimestamp"`
 }

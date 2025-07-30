@@ -27,6 +27,8 @@ type CloudWatchLogsClientInterface interface {
 // KMSClientInterface defines the interface for KMS operations
 type KMSClientInterface interface {
 	DescribeKey(ctx context.Context, params *kms.DescribeKeyInput, optFns ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
+	GetKeyPolicy(ctx context.Context, params *kms.GetKeyPolicyInput, optFns ...func(*kms.Options)) (*kms.GetKeyPolicyOutput, error)
+	ListGrants(ctx context.Context, params *kms.ListGrantsInput, optFns ...func(*kms.Options)) (*kms.ListGrantsOutput, error)
 }
 
 // ConfigServiceClientInterface defines the interface for AWS Config operations
