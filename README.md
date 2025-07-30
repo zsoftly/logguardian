@@ -2,8 +2,17 @@
 
 **Automated CloudWatch Log Groups Compliance Automation**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!-- Core Status Badges -->
+[![Build Status](https://github.com/zsoftly/logguardian/workflows/CI/badge.svg)](https://github.com/zsoftly/logguardian/actions)
+[![Security Scan](https://img.shields.io/badge/Security-GoSec%20%E2%9C%93-green.svg)](https://github.com/zsoftly/logguardian/actions)
+[![Vulnerabilities](https://img.shields.io/badge/Vulnerabilities-0-brightgreen.svg)](https://github.com/zsoftly/logguardian/actions)
+
+<!-- Technology & Platform -->
+[![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8.svg)](https://golang.org/)
 [![AWS](https://img.shields.io/badge/AWS-CloudWatch-orange.svg)](https://aws.amazon.com/cloudwatch/)
+
+<!-- Legal & Compliance -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Security](https://img.shields.io/badge/Security-Compliance-blue.svg)]()
 
 > Enterprise-grade automation for CloudWatch log group encryption, retention, and compliance monitoring
