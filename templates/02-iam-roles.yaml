@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LogGuardian - IAM Roles with Least-Privilege Permissions'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+    
+  KMSKeyArn:
+    Type: String
+    Default: ""
+    Description: ARN of the KMS key for log group encryption (optional - leave empty if not using KMS encryption)
+
+Conditions:
+  UseKMSKey: !Not [!Equals [!Ref KMSKeyArn, ""]]
+
+Resources:
+  # Lambda Execution Role
+  LogGuardianLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "LogGuardian-LambdaRole-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LogGuardianExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # AWS Config permissions
+              - Effect: Allow
+                Action:
+                  - config:GetComplianceDetailsByConfigRule
+                  - config:GetComplianceDetailsByResource
+                  - config:DescribeConfigRules
+                Resource: "*"
+              # CloudWatch Logs permissions
+              - Effect: Allow
+                Action:
+                  - logs:AssociateKmsKey
+                  - logs:PutRetentionPolicy
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: "*"
+              # KMS permissions for log group encryption (only if KMS key is provided)
+              - !If
+                - UseKMSKey
+                - Effect: Allow
+                  Action:
+                    - kms:Encrypt
+                    - kms:Decrypt
+                    - kms:ReEncrypt*
+                    - kms:GenerateDataKey*
+                    - kms:DescribeKey
+                  Resource: !Ref KMSKeyArn
+                - !Ref AWS::NoValue
+              # CloudWatch metrics permissions
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "cloudwatch:namespace": "LogGuardian"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Config Service Role (if needed for custom rules)
+  LogGuardianConfigRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "LogGuardian-ConfigRole-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/ConfigRole
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+Outputs:
+  LambdaExecutionRoleArn:
+    Description: ARN of the Lambda execution role
+    Value: !GetAtt LogGuardianLambdaRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaExecutionRoleArn"
+      
+  ConfigServiceRoleArn:
+    Description: ARN of the Config service role
+    Value: !GetAtt LogGuardianConfigRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ConfigServiceRoleArn"

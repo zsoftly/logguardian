@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LogGuardian - KMS Key for CloudWatch Log Group Encryption'
+
+Parameters:
+  KMSKeyAlias:
+    Type: String
+    Default: alias/logguardian-logs
+    Description: KMS key alias for encrypting CloudWatch log groups
+    AllowedPattern: "^alias/[a-zA-Z0-9:/_-]+$"
+    
+  Environment:
+    Type: String
+    Default: dev
+    Description: Deployment environment (e.g. dev, staging, prod, test, qa, etc)
+    
+  CreateKey:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Whether to create a new KMS key
+
+Conditions:
+  ShouldCreateKey: !Equals [!Ref CreateKey, "true"]
+
+Resources:
+  LogGuardianKMSKey:
+    Type: AWS::KMS::Key
+    Condition: ShouldCreateKey
+    Properties:
+      Description: !Sub "LogGuardian KMS key for CloudWatch log group encryption - ${Environment}"
+      KeyPolicy:
+        Statement:
+          - Sid: Enable root permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: Allow CloudWatch Logs Service
+            Effect: Allow
+            Principal:
+              Service: !Sub "logs.${AWS::Region}.amazonaws.com"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+            Condition:
+              ArnEquals:
+                "kms:EncryptionContext:aws:logs:arn": !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+          - Sid: Allow Lambda execution role
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/LogGuardian-LambdaRole-${Environment}"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+      KeyRotationStatus: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+        - Key: Purpose
+          Value: CloudWatchLogsEncryption
+
+  LogGuardianKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Condition: ShouldCreateKey
+    Properties:
+      AliasName: !Ref KMSKeyAlias
+      TargetKeyId: !Ref LogGuardianKMSKey
+
+Outputs:
+  KMSKeyArn:
+    Description: ARN of the KMS key for log group encryption
+    Value: !If
+      - ShouldCreateKey
+      - !GetAtt LogGuardianKMSKey.Arn
+      - !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:${KMSKeyAlias}"
+    Export:
+      Name: !Sub "${AWS::StackName}-KMSKeyArn"
+      
+  KMSKeyId:
+    Description: ID of the KMS key for log group encryption
+    Value: !If
+      - ShouldCreateKey
+      - !Ref LogGuardianKMSKey
+      - !Sub "${KMSKeyAlias}"
+    Export:
+      Name: !Sub "${AWS::StackName}-KMSKeyId"
+      
+  KMSKeyAlias:
+    Description: Alias of the KMS key for log group encryption
+    Value: !Ref KMSKeyAlias  
+    Export:
+      Name: !Sub "${AWS::StackName}-KMSKeyAlias"

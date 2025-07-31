@@ -174,9 +174,9 @@ For multi-region deployments, the Lambda can be configured with region-specific 
 
 ```bash
 # Region-specific KMS keys
-KMS_KEY_ALIAS_US_EAST_1=alias/logs-ca-central-1
-KMS_KEY_ALIAS_US_WEST_2=alias/logs-ca-west-1
-KMS_KEY_ALIAS_EU_WEST_1=alias/logs-eu-west-1
+KMS_KEY_ALIAS_CA_CENTRAL_1=alias/logs-ca-central-1
+KMS_KEY_ALIAS_CA_WEST_1=alias/logs-ca-west-1
+KMS_KEY_ALIAS_EU_CENTRAL_1=alias/logs-eu-central-1
 ```
 
 The Lambda will automatically select the appropriate key based on the resource region.

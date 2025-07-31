@@ -206,10 +206,9 @@ func (s *ComplianceService) applyEncryption(ctx context.Context, logGroupName st
 		"audit_action", AuditActionPolicyValidationSuccess)
 
 	// Step 3: Apply encryption with proper error handling
-	if err := s.associateKMSKeyWithRetry(ctx, logGroupName, keyInfo.KeyId); err != nil {
+	if err := s.associateKMSKeyWithRetry(ctx, logGroupName, keyInfo.Arn); err != nil {
 		slog.Error("Failed to associate KMS key with log group",
 			"log_group", logGroupName,
-			"kms_key_id", keyInfo.KeyId,
 			"kms_key_arn", keyInfo.Arn,
 			"error", err,
 			"audit_action", AuditActionEncryptionFailed,
@@ -594,7 +593,7 @@ func (s *ComplianceService) validateKMSKeyPolicyForCloudWatchLogs(ctx context.Co
 }
 
 // associateKMSKeyWithRetry associates a KMS key with the log group with retry logic
-func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGroupName, keyId string) error {
+func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGroupName, kmsKeyArn string) error {
 	maxRetries := int(s.config.MaxKMSRetries)
 	var lastErr error
 
@@ -619,7 +618,7 @@ func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGro
 			}
 			slog.Info("Retrying KMS key association",
 				"log_group", logGroupName,
-				"kms_key_id", keyId,
+				"kms_key_id", kmsKeyArn,
 				"attempt", attempt+1,
 				"delay", delay)
 			time.Sleep(delay)
@@ -627,14 +626,14 @@ func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGro
 
 		input := &cloudwatchlogs.AssociateKmsKeyInput{
 			LogGroupName: aws.String(logGroupName),
-			KmsKeyId:     aws.String(keyId),
+			KmsKeyId:     aws.String(kmsKeyArn),
 		}
 
 		_, err := s.logsClient.AssociateKmsKey(ctx, input)
 		if err == nil {
 			slog.Info("Successfully associated KMS key",
 				"log_group", logGroupName,
-				"kms_key_id", keyId,
+				"kms_key_id", kmsKeyArn,
 				"attempts", attempt+1)
 			return nil
 		}
@@ -645,7 +644,7 @@ func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGro
 		if isKMSKeyNotFoundError(err) || isKMSAccessDeniedError(err) || isInvalidLogGroupError(err) {
 			slog.Error("Non-retryable error encountered",
 				"log_group", logGroupName,
-				"kms_key_id", keyId,
+				"kms_key_id", kmsKeyArn,
 				"error", err,
 				"attempt", attempt+1)
 			break
@@ -655,7 +654,7 @@ func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGro
 		if isRateLimitError(err) {
 			slog.Warn("Rate limit encountered during KMS key association",
 				"log_group", logGroupName,
-				"kms_key_id", keyId,
+				"kms_key_id", kmsKeyArn,
 				"attempt", attempt+1,
 				"error", err)
 			continue
@@ -663,7 +662,7 @@ func (s *ComplianceService) associateKMSKeyWithRetry(ctx context.Context, logGro
 
 		slog.Warn("KMS key association failed, will retry",
 			"log_group", logGroupName,
-			"kms_key_id", keyId,
+			"kms_key_id", kmsKeyArn,
 			"attempt", attempt+1,
 			"error", err)
 	}

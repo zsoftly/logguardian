@@ -32,9 +32,9 @@ LogGuardian automatically detects cross-region KMS keys and provides appropriate
 # Global fallback key
 KMS_KEY_ALIAS="alias/cloudwatch-logs-global"
 
-# Region-specific keys (recommended)  
-KMS_KEY_ALIAS_us_east_1="alias/cloudwatch-logs-east"
-KMS_KEY_ALIAS_us_west_2="alias/cloudwatch-logs-west"
+# Region-specific KMS keys
+KMS_KEY_ALIAS_CA_CENTRAL_1="alias/cloudwatch-logs-central"
+KMS_KEY_ALIAS_CA_WEST_1="alias/cloudwatch-logs-west"
 ```
 
 ## Audit Trail

@@ -1,0 +1,202 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LogGuardian - CloudWatch Monitoring, Alarms, and Dashboard'
+
+Parameters:
+  LambdaFunctionName:
+    Type: String
+    Description: Name of the LogGuardian Lambda function
+    
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+    
+  EnableDetailedMonitoring:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Enable detailed monitoring with alarms
+    
+  CreateDashboard:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Create CloudWatch dashboard
+
+Conditions:
+  ShouldCreateDashboard: !Equals [!Ref CreateDashboard, "true"]
+  ShouldEnableMonitoring: !Equals [!Ref EnableDetailedMonitoring, "true"]
+
+Resources:
+  # CloudWatch Dashboard
+  LogGuardianDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Condition: ShouldCreateDashboard
+    Properties:
+      DashboardName: !Sub "LogGuardian-${Environment}"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${LambdaFunctionName}" ],
+                  [ ".", "Errors", ".", "." ],
+                  [ ".", "Duration", ".", "." ],
+                  [ ".", "Throttles", ".", "." ]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Lambda Function Metrics",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "LogGuardian", "LogGroupsProcessed", "Environment", "${Environment}" ],
+                  [ ".", "LogGroupsRemediated", ".", "." ],
+                  [ ".", "RemediationErrors", ".", "." ],
+                  [ ".", "ComplianceRate", ".", "." ]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Compliance Metrics",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 6,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${LambdaFunctionName}'\n| fields @timestamp, @message\n| filter @message like /ERROR/\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "Recent Errors",
+                "view": "table"
+              }
+            }
+          ]
+        }
+
+  # Lambda Error Alarm
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldEnableMonitoring
+    Properties:
+      AlarmName: !Sub "LogGuardian-${Environment}-Lambda-Errors"
+      AlarmDescription: "Alert when Lambda function has errors"
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      TreatMissingData: notBreaching
+
+  # Lambda Duration Alarm
+  LambdaDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldEnableMonitoring
+    Properties:
+      AlarmName: !Sub "LogGuardian-${Environment}-Lambda-Duration"
+      AlarmDescription: "Alert when Lambda function duration is high"
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 300000  # 5 minutes in milliseconds
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      TreatMissingData: notBreaching
+
+  # Lambda Throttles Alarm
+  LambdaThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldEnableMonitoring
+    Properties:
+      AlarmName: !Sub "LogGuardian-${Environment}-Lambda-Throttles"
+      AlarmDescription: "Alert when Lambda function is being throttled"
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      TreatMissingData: notBreaching
+
+  # Custom Metric: Compliance Rate Alarm
+  ComplianceRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: ShouldEnableMonitoring
+    Properties:
+      AlarmName: !Sub "LogGuardian-${Environment}-Low-Compliance-Rate"
+      AlarmDescription: "Alert when compliance rate is below 95%"
+      MetricName: ComplianceRate
+      Namespace: LogGuardian
+      Statistic: Average
+      Period: 3600  # 1 hour
+      EvaluationPeriods: 1
+      Threshold: 95
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: Environment
+          Value: !Ref Environment
+      TreatMissingData: notBreaching
+
+  # SNS Topic for Alarms (optional)
+  LogGuardianAlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: ShouldEnableMonitoring
+    Properties:
+      TopicName: !Sub "logguardian-alarms-${Environment}"
+      DisplayName: !Sub "LogGuardian Alarms - ${Environment}"
+
+Outputs:
+  DashboardURL:
+    Description: URL to the CloudWatch dashboard
+    Condition: ShouldCreateDashboard
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=LogGuardian-${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-DashboardURL"
+      
+  AlarmTopicArn:
+    Description: ARN of the SNS topic for alarms
+    Condition: ShouldEnableMonitoring
+    Value: !Ref LogGuardianAlarmTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-AlarmTopicArn"
