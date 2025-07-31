@@ -112,7 +112,7 @@ cat response.json
 
 ```bash
 # Process different regions with separate invocations
-for region in ca-central-1 ca-west-1 us-east-2; do
+for region in ca-central-1 ca-west-1; do
   aws lambda invoke \
     --function-name logguardian-compliance \
     --payload "{
