@@ -17,7 +17,7 @@
 
 > Enterprise-grade automation for CloudWatch log group encryption, retention, and compliance monitoring
 
-## 🚀 Quick Start
+## Quick Start
 
 ### One-Click AWS Marketplace Deployment
 [![Deploy from AWS Marketplace](https://img.shields.io/badge/Deploy-AWS%20Marketplace-FF9900?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com/marketplace/pp/prodview-logguardian)
@@ -50,9 +50,9 @@ make test && make security
 
 **📖 [Go Lambda Function Documentation](docs/go-lambda-function.md)**
 
-## 🛠️ Implementation Status
+## Implementation Status
 
-**✅ Completed:**
+✅ **Completed:**
 - Go 1.24 Lambda function with AWS SDK v2
 - AWS Config event processing and compliance analysis
 - Config rule evaluation batch processing for non-compliant resources
@@ -75,7 +75,7 @@ make test && make security
 - [Contributing](#contributing)
 - [License](#license)
 
-## ❗ Problem Statement
+## Problem Statement
 
 AWS customers struggle with maintaining CloudWatch log group compliance across their organization due to:
 
@@ -93,7 +93,7 @@ AWS customers struggle with maintaining CloudWatch log group compliance across t
 - **Compliance Violations**: Inconsistent retention policies lead to regulatory compliance issues
 - **Audit Failures**: Lack of systematic compliance tracking during security reviews
 
-## 🎯 Solution Overview
+## Solution Overview
 
 LogGuardian transforms CloudWatch log group compliance from a manual, error-prone process into an automated, cost-effective, and reliable system that scales with organizational growth while maintaining security and compliance standards.
 
@@ -103,45 +103,46 @@ LogGuardian transforms CloudWatch log group compliance from a manual, error-pron
 - **Enterprise-Ready**: Built for multi-account, multi-region AWS environments
 - **Compliance-First**: Designed specifically for audit and regulatory requirements
 
-## ✨ Features
+## Features
 
-### **🔍 Intelligent Compliance Discovery**
+### Intelligent Compliance Discovery
 - Utilizes AWS Config Rules to efficiently identify non-compliant CloudWatch log groups
 - Pre-built compliance rules for encryption and retention requirements
 - Configurable compliance standards (365 days retention minimum, customer-managed KMS keys)
 - Multi-region compliance monitoring from centralized deployment
 
-### **🛡️ Safe Automated Remediation**
+### Safe Automated Remediation
 - Automated application of retention policies to non-compliant log groups
-- Safe KMS encryption using pre-configured customer-managed keys
+- Safe KMS encryption with comprehensive validation and cross-region support
+- Customer-managed keys with policy verification and accessibility checks
 - Prerequisite validation to ensure service IAM roles have proper KMS permissions
 - Rollback capabilities for failed remediation attempts
 
-### **🤝 Shared Responsibility Model**
+### Shared Responsibility Model
 - Customer maintains control over KMS key creation and IAM permission management
 - Product assumes keys and permissions are pre-configured and tested
 - Clear separation of customer vs. automation responsibilities
 - Fail-fast approach when prerequisites are not met
 
-### **💰 Cost-Optimized Operations**
+### Cost-Optimized Operations
 - Event-driven remediation based on Config Rule evaluations
 - Process only non-compliant resources (typically 5-10% of total log groups)
 - Configurable schedule options (daily, weekly, monthly) based on organizational requirements
 - Elimination of continuous resource scanning
 
-### **📊 Enterprise Governance**
+### Enterprise Governance
 - Comprehensive compliance reporting and dashboards
 - Audit trail of all remediation activities
 - Integration with AWS Organizations for multi-account deployments
 - Customizable notification and alerting for compliance changes
 
-### **🔧 Flexible Deployment Options**
+### Flexible Deployment Options
 - Single-region or multi-region deployment configurations
 - Support for different compliance schedules per environment (prod vs. dev)
 - Granular policy controls for different log group patterns
 - Integration with existing CI/CD and infrastructure-as-code workflows
 
-## 🏗️ Architecture
+## Architecture
 
 ### **High-Level Architecture**
 ```
@@ -221,7 +222,7 @@ module "logguardian" {
   schedule = "weekly"
   
   # Multi-region support
-  regions = ["us-east-1", "us-west-2", "eu-west-1"]
+  regions = ["ca-central-1", "ca-west-1", "us-east-2"]
   
   # Notification settings
   notification_email = "compliance@yourcompany.com"
@@ -230,15 +231,16 @@ module "logguardian" {
 
 ## 📚 Documentation
 
-- [📘 Go Lambda Function](docs/go-lambda-function.md) - Complete Lambda function documentation  
-- [⚙️ Config Rule Evaluation](docs/config-rule-evaluation.md) - Batch processing non-compliant resources
-- [🔧 Development Guide](docs/development.md) - Development setup and guidelines
-- [🏗️ Architecture Deep Dive](docs/architecture.md) - Technical architecture details
-- [🔒 Security Best Practices](docs/security.md) - Security implementation guide
+- [Go Lambda Function](docs/go-lambda-function.md) - Complete Lambda function documentation  
+- [Config Rule Evaluation](docs/config-rule-evaluation.md) - Batch processing non-compliant resources
+- [KMS Encryption Validation](docs/kms-encryption-validation.md) - KMS key validation and cross-region support
+- [Development Guide](docs/development.md) - Development setup and guidelines
+- [Architecture Deep Dive](docs/architecture.md) - Technical architecture details
+- [Security Best Practices](docs/security.md) - Security implementation guide
 - [🚀 Deployment Guide](docs/deployment.md) - Deployment instructions
-- [📊 Monitoring & Alerting](docs/monitoring.md) - Monitoring setup guide
+- [Monitoring & Alerting](docs/monitoring.md) - Monitoring setup guide
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Development Guide](docs/development.md) for details.
 
@@ -254,7 +256,7 @@ make test
 # See development guide for more details
 ```
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 

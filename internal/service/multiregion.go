@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -20,6 +21,18 @@ type MultiRegionComplianceService struct {
 	serviceConfigs map[string]ServiceConfig      // region -> config
 	services       map[string]*ComplianceService // region -> service
 	mu             sync.RWMutex
+}
+
+// validationResult represents the result of KMS key validation for a specific region
+type validationResult struct {
+	region string
+	report *types.KMSValidationReport
+}
+
+// regionJob represents a KMS validation job for a specific region
+type regionJob struct {
+	region  string
+	service *ComplianceService
 }
 
 // NewMultiRegionComplianceService creates a new multi-region compliance service
@@ -125,23 +138,176 @@ func (mrs *MultiRegionComplianceService) ValidateRegionAccess(ctx context.Contex
 		}
 		_, err := service.logsClient.DescribeLogGroups(ctx, logsInput)
 		if err != nil {
+			slog.Error("Failed to access CloudWatch Logs in region",
+				"region", region,
+				"error", err,
+				"audit_action", "region_validation_failed",
+				"service", "cloudwatch_logs")
 			return fmt.Errorf("failed to access CloudWatch Logs in region %s: %w", region, err)
 		}
 
-		// Test KMS access by attempting to resolve the key alias
-		_, err = service.resolveKMSKeyAlias(ctx, service.config.DefaultKMSKeyAlias)
+		// Test KMS access by validating the key alias
+		keyInfo, err := service.validateKMSKeyAccessibility(ctx, service.config.DefaultKMSKeyAlias)
 		if err != nil {
-			slog.Warn("KMS key validation failed",
+			slog.Warn("KMS key validation failed during region validation",
 				"region", region,
 				"key_alias", service.config.DefaultKMSKeyAlias,
-				"error", err)
+				"error", err,
+				"audit_action", "region_validation_warning",
+				"service", "kms",
+				"note", "KMS key may not exist yet - this is acceptable if keys will be created later")
 			// Don't fail validation if KMS key doesn't exist - it might be created later
+		} else {
+			// If key exists, perform comprehensive validation
+			slog.Info("KMS key validation successful during region access check",
+				"region", region,
+				"key_alias", service.config.DefaultKMSKeyAlias,
+				"kms_key_id", keyInfo.KeyId,
+				"kms_key_arn", keyInfo.Arn,
+				"key_state", keyInfo.KeyState,
+				"key_region", keyInfo.Region,
+				"audit_action", "region_kms_validation_success")
+
+			// Also validate the key policy for CloudWatch Logs
+			if err := service.validateKMSKeyPolicyForCloudWatchLogs(ctx, keyInfo.KeyId); err != nil {
+				slog.Warn("KMS key policy validation failed during region validation",
+					"region", region,
+					"kms_key_id", keyInfo.KeyId,
+					"error", err,
+					"audit_action", "region_policy_validation_warning",
+					"note", "Key policy may need adjustment for CloudWatch Logs access")
+			}
 		}
 
-		slog.Info("Region validation passed", "region", region)
+		slog.Info("Region validation passed",
+			"region", region,
+			"audit_action", "region_validation_success")
 	}
 
 	return nil
+}
+
+// ValidateKMSKeysAcrossRegions validates KMS keys in all configured regions
+// This provides comprehensive cross-region KMS key validation with concurrent processing
+func (mrs *MultiRegionComplianceService) ValidateKMSKeysAcrossRegions(ctx context.Context) (map[string]*types.KMSValidationReport, error) {
+	mrs.mu.RLock()
+	defer mrs.mu.RUnlock()
+
+	reports := make(map[string]*types.KMSValidationReport)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	slog.Info("Starting cross-region KMS key validation",
+		"regions", len(mrs.services),
+		"audit_action", "multi_region_kms_validation_start")
+
+	// Use worker pool pattern to control concurrency and prevent resource exhaustion
+	// Default to 10 workers based on AWS API rate limiting considerations:
+	// - AWS APIs typically allow 10-20 requests per second per service
+	// - Each region validation involves multiple API calls (KMS DescribeKey, GetKeyPolicy, etc.)
+	// - This balances performance with avoiding throttling across multiple AWS services
+	maxWorkers := getEnvAsIntOrDefault("MAX_REGION_WORKERS", 10)
+
+	// Create channels for work distribution
+	jobChan := make(chan regionJob, len(mrs.services))
+	resultChan := make(chan validationResult, len(mrs.services))
+
+	// Start worker goroutines with controlled concurrency
+	numWorkers := maxWorkers
+	if numWorkers > len(mrs.services) {
+		numWorkers = len(mrs.services)
+	}
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobChan {
+				slog.Info("Validating KMS key in region",
+					"region", job.region,
+					"key_alias", job.service.config.DefaultKMSKeyAlias)
+
+				report, err := job.service.ValidateKMSKeyComprehensively(ctx, job.service.config.DefaultKMSKeyAlias)
+				if err != nil {
+					slog.Error("Failed to validate KMS key in region",
+						"region", job.region,
+						"key_alias", job.service.config.DefaultKMSKeyAlias,
+						"error", err,
+						"audit_action", "region_kms_validation_error")
+
+					// Create a minimal report with error information
+					report = &types.KMSValidationReport{
+						KeyAlias:            job.service.config.DefaultKMSKeyAlias,
+						CurrentRegion:       job.region,
+						ValidationTimestamp: time.Now().UTC(),
+						KeyExists:           false,
+						KeyAccessible:       false,
+						ValidationErrors:    []string{err.Error()},
+					}
+				}
+
+				resultChan <- validationResult{
+					region: job.region,
+					report: report,
+				}
+
+				slog.Info("Completed KMS key validation for region",
+					"region", job.region,
+					"key_alias", job.service.config.DefaultKMSKeyAlias,
+					"key_exists", report.KeyExists,
+					"key_accessible", report.KeyAccessible,
+					"cloudwatch_logs_access", report.CloudWatchLogsAccess,
+					"validation_errors", len(report.ValidationErrors),
+					"validation_warnings", len(report.ValidationWarnings))
+			}
+		}()
+	}
+
+	// Send all jobs to workers
+	for region, service := range mrs.services {
+		jobChan <- regionJob{region, service}
+	}
+	close(jobChan)
+
+	// Collect results
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Gather all reports with thread-safe access
+	for result := range resultChan {
+		mu.Lock()
+		reports[result.region] = result.report
+		mu.Unlock()
+	}
+
+	// Log summary
+	totalRegions := len(reports)
+	successfulRegions := 0
+	warningRegions := 0
+	errorRegions := 0
+
+	for _, report := range reports {
+		if len(report.ValidationErrors) == 0 {
+			if len(report.ValidationWarnings) == 0 {
+				successfulRegions++
+			} else {
+				warningRegions++
+			}
+		} else {
+			errorRegions++
+		}
+	}
+
+	slog.Info("Cross-region KMS key validation summary",
+		"total_regions", totalRegions,
+		"successful_regions", successfulRegions,
+		"warning_regions", warningRegions,
+		"error_regions", errorRegions,
+		"audit_action", "multi_region_kms_validation_complete")
+
+	return reports, nil
 }
 
 // NewMultiRegionFromEnvironment creates a multi-region service from environment variables
@@ -156,11 +322,11 @@ func NewMultiRegionFromEnvironment(ctx context.Context) (*MultiRegionComplianceS
 	mrs := NewMultiRegionComplianceService(cfg)
 
 	// Load regions from environment (comma-separated list)
-	regionsEnv := getEnvOrDefault("SUPPORTED_REGIONS", "us-east-1,us-west-2")
+	regionsEnv := getEnvOrDefault("SUPPORTED_REGIONS", "ca-central-1,ca-west-1")
 	regions := parseCommaDelimitedString(regionsEnv)
 
 	if len(regions) == 0 {
-		regions = []string{"us-east-1"} // Default fallback
+		regions = []string{"ca-central-1"} // Default fallback
 	}
 
 	// Load configuration for each region

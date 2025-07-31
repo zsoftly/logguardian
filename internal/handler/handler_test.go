@@ -25,7 +25,7 @@ func TestComplianceHandler_HandleConfigEvent(t *testing.T) {
 					ConfigurationItem: types.ConfigurationItem{
 						ResourceType:                 "AWS::Logs::LogGroup",
 						ResourceName:                 "/aws/lambda/test-function",
-						AwsRegion:                    "us-east-1",
+						AwsRegion:                    "ca-central-1",
 						AwsAccountId:                 "123456789012",
 						ConfigurationItemStatus:      "ResourceDiscovered",
 						ConfigurationItemCaptureTime: time.Now(),
@@ -49,7 +49,7 @@ func TestComplianceHandler_HandleConfigEvent(t *testing.T) {
 					ConfigurationItem: types.ConfigurationItem{
 						ResourceType:            "AWS::Logs::LogGroup",
 						ResourceName:            "/aws/lambda/test-function",
-						AwsRegion:               "us-east-1",
+						AwsRegion:               "ca-central-1",
 						ConfigurationItemStatus: "ResourceDeleted",
 					},
 				},
@@ -66,7 +66,7 @@ func TestComplianceHandler_HandleConfigEvent(t *testing.T) {
 					ConfigurationItem: types.ConfigurationItem{
 						ResourceType:            "AWS::S3::Bucket",
 						ResourceName:            "my-bucket",
-						AwsRegion:               "us-east-1",
+						AwsRegion:               "ca-central-1",
 						ConfigurationItemStatus: "ResourceDiscovered",
 					},
 				},
@@ -83,14 +83,14 @@ func TestComplianceHandler_HandleConfigEvent(t *testing.T) {
 					ConfigurationItem: types.ConfigurationItem{
 						ResourceType:                 "AWS::Logs::LogGroup",
 						ResourceName:                 "/aws/lambda/compliant-function",
-						AwsRegion:                    "us-east-1",
+						AwsRegion:                    "ca-central-1",
 						AwsAccountId:                 "123456789012",
 						ConfigurationItemStatus:      "ResourceDiscovered",
 						ConfigurationItemCaptureTime: time.Now(),
 						Configuration: types.LogGroupConfiguration{
 							LogGroupName:    "/aws/lambda/compliant-function",
 							RetentionInDays: intPtr(365),
-							KmsKeyId:        "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+							KmsKeyId:        "arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012",
 						},
 					},
 				},
@@ -146,7 +146,7 @@ func TestComplianceHandler_analyzeCompliance(t *testing.T) {
 		{
 			name: "missing both encryption and retention",
 			configItem: types.ConfigurationItem{
-				AwsRegion:    "us-east-1",
+				AwsRegion:    "ca-central-1",
 				AwsAccountId: "123456789012",
 				Configuration: types.LogGroupConfiguration{
 					LogGroupName:    "/aws/lambda/test",
@@ -160,7 +160,7 @@ func TestComplianceHandler_analyzeCompliance(t *testing.T) {
 		{
 			name: "missing only encryption",
 			configItem: types.ConfigurationItem{
-				AwsRegion:    "us-east-1",
+				AwsRegion:    "ca-central-1",
 				AwsAccountId: "123456789012",
 				Configuration: types.LogGroupConfiguration{
 					LogGroupName:    "/aws/lambda/test",
@@ -174,12 +174,12 @@ func TestComplianceHandler_analyzeCompliance(t *testing.T) {
 		{
 			name: "missing only retention",
 			configItem: types.ConfigurationItem{
-				AwsRegion:    "us-east-1",
+				AwsRegion:    "ca-central-1",
 				AwsAccountId: "123456789012",
 				Configuration: types.LogGroupConfiguration{
 					LogGroupName:    "/aws/lambda/test",
 					RetentionInDays: nil,
-					KmsKeyId:        "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+					KmsKeyId:        "arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012",
 				},
 			},
 			expectedMissingEncryption: false,
@@ -188,12 +188,12 @@ func TestComplianceHandler_analyzeCompliance(t *testing.T) {
 		{
 			name: "fully compliant",
 			configItem: types.ConfigurationItem{
-				AwsRegion:    "us-east-1",
+				AwsRegion:    "ca-central-1",
 				AwsAccountId: "123456789012",
 				Configuration: types.LogGroupConfiguration{
 					LogGroupName:    "/aws/lambda/test",
 					RetentionInDays: intPtr(365),
-					KmsKeyId:        "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
+					KmsKeyId:        "arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012",
 				},
 			},
 			expectedMissingEncryption: false,

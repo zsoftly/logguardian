@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,7 +29,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "apply both encryption and retention",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  true,
 			},
@@ -40,7 +41,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "apply only encryption",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  false,
 			},
@@ -52,7 +53,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "apply only retention",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: false,
 				MissingRetention:  true,
 			},
@@ -64,7 +65,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "no remediation needed",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: false,
 				MissingRetention:  false,
 			},
@@ -76,7 +77,7 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			name: "dry run mode",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  true,
 			},
@@ -86,21 +87,32 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 			expectedSuccess:  true,
 		},
 		{
-			name: "kms error should fail",
+			name: "kms key validation failure should fail",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: true,
 				MissingRetention:  false,
 			},
-			kmsError:        errors.New("KMS access denied"),
+			kmsError:        errors.New("NotFoundException: Key 'alias/test-key' does not exist"),
 			expectedSuccess: false,
+		},
+		{
+			name: "kms key disabled should fail",
+			compliance: logguardiantypes.ComplianceResult{
+				LogGroupName:      "/aws/lambda/test",
+				Region:            "ca-central-1",
+				MissingEncryption: true,
+				MissingRetention:  false,
+			},
+			expectEncryption: false,
+			expectedSuccess:  false,
 		},
 		{
 			name: "logs error should fail",
 			compliance: logguardiantypes.ComplianceResult{
 				LogGroupName:      "/aws/lambda/test",
-				Region:            "us-east-1",
+				Region:            "ca-central-1",
 				MissingEncryption: false,
 				MissingRetention:  true,
 			},
@@ -116,8 +128,15 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 				AssociateKmsKeyError:    tt.kmsError,
 				PutRetentionPolicyError: tt.logsError,
 			}
+
+			keyState := kmstypes.KeyStateEnabled
+			if tt.name == "kms key disabled should fail" {
+				keyState = kmstypes.KeyStateDisabled
+			}
+
 			mockKmsClient := &MockKMSClient{
 				DescribeKeyError: tt.kmsError,
+				KeyState:         keyState,
 			}
 
 			// Create service
@@ -128,6 +147,8 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 					DefaultKMSKeyAlias:   "alias/test-key",
 					DefaultRetentionDays: 365,
 					DryRun:               tt.dryRun,
+					MaxKMSRetries:        3,
+					RetryBaseDelay:       100,
 				},
 			}
 
@@ -210,9 +231,15 @@ func (m *MockCloudWatchLogsClient) DescribeLogGroups(ctx context.Context, params
 
 // MockKMSClient implements the KMS client interface for testing
 type MockKMSClient struct {
-	DescribeKeyCalled bool
-	DescribeKeyError  error
-	KeyId             string
+	DescribeKeyCalled  bool
+	DescribeKeyError   error
+	KeyId              string
+	KeyState           kmstypes.KeyState
+	GetKeyPolicyCalled bool
+	GetKeyPolicyError  error
+	KeyPolicy          string
+	ListGrantsCalled   bool
+	ListGrantsError    error
 }
 
 func (m *MockKMSClient) DescribeKey(ctx context.Context, params *kms.DescribeKeyInput, optFns ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
@@ -226,17 +253,69 @@ func (m *MockKMSClient) DescribeKey(ctx context.Context, params *kms.DescribeKey
 		keyId = m.KeyId
 	}
 
+	keyState := kmstypes.KeyStateEnabled
+	if m.KeyState != "" {
+		keyState = m.KeyState
+	}
+
 	return &kms.DescribeKeyOutput{
 		KeyMetadata: &kmstypes.KeyMetadata{
-			KeyId: aws.String(keyId),
+			KeyId:    aws.String(keyId),
+			Arn:      aws.String(fmt.Sprintf("arn:aws:kms:ca-central-1:123456789012:key/%s", keyId)),
+			KeyState: keyState,
 		},
+	}, nil
+}
+
+func (m *MockKMSClient) GetKeyPolicy(ctx context.Context, params *kms.GetKeyPolicyInput, optFns ...func(*kms.Options)) (*kms.GetKeyPolicyOutput, error) {
+	m.GetKeyPolicyCalled = true
+	if m.GetKeyPolicyError != nil {
+		return nil, m.GetKeyPolicyError
+	}
+
+	policy := `{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Principal": {
+					"Service": "logs.amazonaws.com"
+				},
+				"Action": [
+					"kms:Encrypt",
+					"kms:Decrypt",
+					"kms:ReEncrypt*",
+					"kms:GenerateDataKey*",
+					"kms:DescribeKey"
+				],
+				"Resource": "*"
+			}
+		]
+	}`
+	if m.KeyPolicy != "" {
+		policy = m.KeyPolicy
+	}
+
+	return &kms.GetKeyPolicyOutput{
+		Policy: aws.String(policy),
+	}, nil
+}
+
+func (m *MockKMSClient) ListGrants(ctx context.Context, params *kms.ListGrantsInput, optFns ...func(*kms.Options)) (*kms.ListGrantsOutput, error) {
+	m.ListGrantsCalled = true
+	if m.ListGrantsError != nil {
+		return nil, m.ListGrantsError
+	}
+
+	return &kms.ListGrantsOutput{
+		Grants: []kmstypes.GrantListEntry{},
 	}, nil
 }
 
 func TestNewComplianceService(t *testing.T) {
 	// Create a basic AWS config (this won't actually make AWS calls in tests)
 	cfg := aws.Config{
-		Region: "us-east-1",
+		Region: "ca-central-1",
 	}
 
 	service := NewComplianceService(cfg)

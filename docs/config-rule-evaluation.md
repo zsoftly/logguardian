@@ -9,7 +9,7 @@
 {
   "type": "config-rule-evaluation",
   "configRuleName": "cloudwatch-log-group-encrypted",
-  "region": "us-east-1",
+  "region": "ca-central-1",
   "batchSize": 20
 }
 ```
