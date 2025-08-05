@@ -30,12 +30,18 @@
 git clone https://github.com/zsoftly/logguardian.git
 cd logguardian
 
-# Deploy using CloudFormation
+# Build and package Lambda
+make build && make package
+
+# Deploy using CloudFormation (simple single-file template)
 aws cloudformation deploy \
-  --template-file templates/logguardian.yaml \
-  --stack-name logguardian \
-  --capabilities CAPABILITY_IAM
+  --template-file templates/00-logguardian-simple.yaml \
+  --stack-name logguardian-sandbox \
+  --parameter-overrides Environment=sandbox DeploymentBucket=your-bucket \
+  --capabilities CAPABILITY_NAMED_IAM
 ```
+
+📖 **[Complete Deployment Guide](DEPLOYMENT.md)**
 
 ### Go Lambda Function
 For developers wanting to build and customize the Lambda function:
@@ -61,6 +67,8 @@ make test && make security
 - Comprehensive test suite with mocked AWS services
 - CI/CD pipeline with security scanning (GoSec, govulncheck)
 - Structured logging with Go's slog package
+- **CloudFormation Templates**: Complete deployment infrastructure with modular and single-file options
+- **Deployment Automation**: Scripts and comprehensive deployment guide
 
 ## 📋 Table of Contents
 - [Problem Statement](#problem-statement)
@@ -222,7 +230,7 @@ module "logguardian" {
   schedule = "weekly"
   
   # Multi-region support
-  regions = ["ca-central-1", "ca-west-1", "us-east-2"]
+  regions = ["ca-central-1", "ca-west-1"]
   
   # Notification settings
   notification_email = "compliance@yourcompany.com"
@@ -237,8 +245,20 @@ module "logguardian" {
 - [Development Guide](docs/development.md) - Development setup and guidelines
 - [Architecture Deep Dive](docs/architecture.md) - Technical architecture details
 - [Security Best Practices](docs/security.md) - Security implementation guide
-- [🚀 Deployment Guide](docs/deployment.md) - Deployment instructions
+- [🚀 Deployment Guide](DEPLOYMENT.md) - Complete deployment instructions and CloudFormation templates
 - [Monitoring & Alerting](docs/monitoring.md) - Monitoring setup guide
+
+## CloudFormation Templates
+
+- `templates/00-logguardian-simple.yaml` - Single-file complete deployment
+- `templates/01-logguardian-main.yaml` - Modular main template  
+- `templates/02-iam-roles.yaml` - IAM roles and policies
+- `templates/03-lambda-function.yaml` - Lambda function configuration
+- `templates/04-kms-key.yaml` - KMS key and alias
+- `templates/05-config-rules.yaml` - AWS Config rules
+- `templates/06-eventbridge-rules.yaml` - EventBridge scheduled triggers
+- `templates/07-monitoring.yaml` - CloudWatch dashboard
+- `templates/08-logguardian-stacksets.yaml` - Multi-region StackSets deployment
 
 ## Contributing
 

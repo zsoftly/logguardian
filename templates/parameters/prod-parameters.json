@@ -1,0 +1,58 @@
+[
+  {
+    "_comment": "⚠️ WARNING: ALL VALUES IN THIS FILE ARE EXAMPLES ONLY - REPLACE WITH YOUR ACTUAL VALUES BEFORE DEPLOYMENT",
+    "_security_note": "Do not use example account IDs, bucket names, or other placeholder values in production"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "DeploymentBucket",
+    "ParameterValue": "your-actual-logguardian-deployment-<your-account-id>"
+  },
+  {
+    "ParameterKey": "TemplatesBucket",
+    "ParameterValue": "logguardian-templates-123456789012"
+  },
+  {
+    "ParameterKey": "LambdaCodeKey",
+    "ParameterValue": "logguardian-compliance.zip"
+  },
+  {
+    "ParameterKey": "LambdaMemorySize",
+    "ParameterValue": "256"
+  },
+  {
+    "ParameterKey": "LambdaTimeout",
+    "ParameterValue": "600"
+  },
+  {
+    "ParameterKey": "DefaultRetentionDays",
+    "ParameterValue": "365"
+  },
+  {
+    "ParameterKey": "LogLevel",
+    "ParameterValue": "INFO"
+  },
+  {
+    "ParameterKey": "KMSKeyAlias",
+    "ParameterValue": "alias/logguardian-logs"
+  },
+  {
+    "ParameterKey": "CreateKMSKey",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "CreateConfigRules",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "CreateEventBridgeRule",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "ScheduleExpression",
+    "ParameterValue": "rate(6 hours)"
+  }
+]

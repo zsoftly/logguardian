@@ -1,0 +1,506 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LogGuardian - Single-File Deployment (All Resources Inline)'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    Description: Deployment environment (e.g. dev, staging, prod, test, qa, etc)
+
+  DeploymentBucket:
+    Type: String
+    Description: S3 bucket containing Lambda deployment package
+    AllowedPattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+
+  LambdaCodeKey:
+    Type: String
+    Default: logguardian-compliance.zip
+    Description: S3 key for Lambda deployment package
+
+  KMSKeyAlias:
+    Type: String
+    Default: alias/logguardian-logs
+    Description: KMS key alias for encrypting CloudWatch log groups
+    AllowedPattern: "^alias/[a-zA-Z0-9:/_-]+$"
+
+  CreateKMSKey:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Create a new KMS key for log group encryption (set to false if using existing key)
+
+  CreateConfigRules:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Create AWS Config rules for compliance monitoring (set to false if rules already exist)
+
+  CreateEventBridgeRule:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Create EventBridge rule for scheduled execution (set to false if using existing rule)
+
+  DefaultRetentionDays:
+    Type: Number
+    Default: 365
+    MinValue: 1
+    MaxValue: 3653
+    Description: Default retention period for log groups in days
+
+  ScheduleExpression:
+    Type: String
+    Default: "rate(24 hours)"
+    Description: How often to run compliance checks
+    AllowedPattern: "^(rate\\(.*\\)|cron\\(.*\\))$"
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 256
+    MinValue: 128
+    MaxValue: 3008
+    Description: Memory allocation for Lambda function (MB)
+
+  LambdaTimeout:
+    Type: Number
+    Default: 900
+    MinValue: 1
+    MaxValue: 900
+    Description: Lambda function timeout in seconds
+
+Conditions:
+  ShouldCreateKMSKey: !Equals [!Ref CreateKMSKey, "true"]
+  ShouldCreateConfigRules: !Equals [!Ref CreateConfigRules, "true"]
+  ShouldCreateEventBridgeRule: !Equals [!Ref CreateEventBridgeRule, "true"]
+
+Resources:
+  # KMS Key for Log Group Encryption
+  LogGuardianKMSKey:
+    Type: AWS::KMS::Key
+    Condition: ShouldCreateKMSKey
+    Properties:
+      Description: !Sub "LogGuardian KMS key for ${Environment} environment"
+      KeyPolicy:
+        Statement:
+          - Sid: Enable root permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: Allow CloudWatch Logs
+            Effect: Allow
+            Principal:
+              Service: !Sub "logs.${AWS::Region}.amazonaws.com"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+            Condition:
+              ArnEquals:
+                "kms:EncryptionContext:aws:logs:arn": !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+      EnableKeyRotation: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  LogGuardianKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Condition: ShouldCreateKMSKey
+    Properties:
+      AliasName: !Ref KMSKeyAlias
+      TargetKeyId: !Ref LogGuardianKMSKey
+
+  # IAM Role for Lambda Execution
+  LogGuardianLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "LogGuardian-LambdaRole-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LogGuardianPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - config:GetComplianceDetailsByConfigRule
+                  - config:GetComplianceDetailsByResource
+                  - config:DescribeConfigRules
+                  - config:DescribeComplianceByConfigRule
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:AssociateKmsKey
+                  - logs:PutRetentionPolicy
+                  - logs:DescribeLogGroups
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey*
+                  - kms:DescribeKey
+                  - kms:GetKeyPolicy
+                  - kms:ListAliases
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "cloudwatch:namespace": "LogGuardian"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Lambda Function
+  LogGuardianLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "logguardian-compliance-${Environment}"
+      Runtime: provided.al2023
+      Handler: main
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: !Ref LambdaCodeKey
+      Role: !GetAtt LogGuardianLambdaRole.Arn
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Environment:
+        Variables:
+          KMS_KEY_ALIAS: !Ref KMSKeyAlias
+          DEFAULT_RETENTION_DAYS: !Ref DefaultRetentionDays
+          ENVIRONMENT: !Ref Environment
+          LOG_LEVEL: INFO
+          DRY_RUN: 'false'
+          BATCH_LIMIT: '100'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # CloudWatch Log Group for Lambda Logs
+  LogGuardianLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/logguardian-compliance-${Environment}"
+      RetentionInDays: 30
+      KmsKeyId: !If 
+        - ShouldCreateKMSKey
+        - !GetAtt LogGuardianKMSKey.Arn
+        - !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:${KMSKeyAlias}"
+
+  # Config Service Role (only created if Config rules are enabled)
+  ConfigServiceRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldCreateConfigRules
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWS_ConfigRole
+
+  # Config Bucket (only created if Config rules are enabled)
+  ConfigBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateConfigRules
+    Properties:
+      BucketName: !Sub 'logguardian-config-${Environment}-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ConfigBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: ShouldCreateConfigRules
+    Properties:
+      Bucket: !Ref ConfigBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt ConfigBucket.Arn
+            Condition:
+              StringEquals:
+                'AWS:SourceAccount': !Ref 'AWS::AccountId'
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: s3:ListBucket
+            Resource: !GetAtt ConfigBucket.Arn
+            Condition:
+              StringEquals:
+                'AWS:SourceAccount': !Ref 'AWS::AccountId'
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub '${ConfigBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': bucket-owner-full-control
+                'AWS:SourceAccount': !Ref 'AWS::AccountId'
+
+  ConfigurationRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Condition: ShouldCreateConfigRules
+    Properties:
+      Name: !Sub 'LogGuardian-Recorder-${Environment}'
+      RoleARN: !GetAtt ConfigServiceRole.Arn
+      RecordingGroup:
+        AllSupported: false
+        IncludeGlobalResourceTypes: false
+        ResourceTypes:
+          - AWS::Logs::LogGroup
+
+  DeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Condition: ShouldCreateConfigRules
+    Properties:
+      Name: !Sub 'LogGuardian-DeliveryChannel-${Environment}'
+      S3BucketName: !Ref ConfigBucket
+
+  # Config Rules
+  CloudWatchLogGroupEncryptedRule:
+    Type: AWS::Config::ConfigRule
+    Condition: ShouldCreateConfigRules
+    DependsOn: ConfigurationRecorder
+    Properties:
+      ConfigRuleName: !Sub "logguardian-encryption-${Environment}"
+      Description: "Checks if CloudWatch log groups are encrypted with KMS"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUDWATCH_LOG_GROUP_ENCRYPTED
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::Logs::LogGroup
+      MaximumExecutionFrequency: TwentyFour_Hours
+
+  CloudWatchLogGroupRetentionRule:
+    Type: AWS::Config::ConfigRule
+    Condition: ShouldCreateConfigRules
+    DependsOn: ConfigurationRecorder
+    Properties:
+      ConfigRuleName: !Sub "logguardian-retention-${Environment}"
+      Description: !Sub "Checks if CloudWatch log groups have retention policy set to at least ${DefaultRetentionDays} days"
+      Source:
+        Owner: AWS
+        SourceIdentifier: CW_LOGGROUP_RETENTION_PERIOD_CHECK
+      InputParameters: !Sub |
+        {
+          "MinRetentionTime": "${DefaultRetentionDays}"
+        }
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::Logs::LogGroup
+      MaximumExecutionFrequency: TwentyFour_Hours
+
+  # EventBridge Rule for Encryption Compliance Checks
+  LogGuardianEncryptionScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: ShouldCreateEventBridgeRule
+    Properties:
+      Name: !Sub "logguardian-encryption-schedule-${Environment}"
+      Description: "Scheduled trigger for LogGuardian encryption compliance checks"
+      ScheduleExpression: !Ref ScheduleExpression
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LogGuardianLambda.Arn
+          Id: "LogGuardianEncryptionTarget"
+          Input: !Sub |
+            {
+              "type": "config-rule-evaluation",
+              "configRuleName": "logguardian-encryption-${Environment}",
+              "region": "${AWS::Region}",
+              "account": "${AWS::AccountId}",
+              "environment": "${Environment}",
+              "batchSize": 20
+            }
+
+  # EventBridge Rule for Retention Compliance Checks
+  LogGuardianRetentionScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: ShouldCreateEventBridgeRule
+    Properties:
+      Name: !Sub "logguardian-retention-schedule-${Environment}"
+      Description: "Scheduled trigger for LogGuardian retention compliance checks"
+      ScheduleExpression: !Ref ScheduleExpression
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LogGuardianLambda.Arn
+          Id: "LogGuardianRetentionTarget"
+          Input: !Sub |
+            {
+              "type": "config-rule-evaluation",
+              "configRuleName": "logguardian-retention-${Environment}",
+              "region": "${AWS::Region}",
+              "account": "${AWS::AccountId}",
+              "environment": "${Environment}",
+              "batchSize": 20
+            }
+
+  # Permission for EventBridge Encryption Rule to invoke Lambda
+  LogGuardianLambdaInvokePermissionEncryption:
+    Type: AWS::Lambda::Permission
+    Condition: ShouldCreateEventBridgeRule
+    Properties:
+      FunctionName: !Ref LogGuardianLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LogGuardianEncryptionScheduleRule.Arn
+
+  # Permission for EventBridge Retention Rule to invoke Lambda
+  LogGuardianLambdaInvokePermissionRetention:
+    Type: AWS::Lambda::Permission
+    Condition: ShouldCreateEventBridgeRule
+    Properties:
+      FunctionName: !Ref LogGuardianLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LogGuardianRetentionScheduleRule.Arn
+
+  # CloudWatch Dashboard
+  LogGuardianDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "LogGuardian-${Environment}"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "logguardian-compliance-${Environment}" ],
+                  [ ".", "Errors", ".", "." ],
+                  [ ".", "Invocations", ".", "." ]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Lambda Function Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "LogGuardian", "LogGroupsProcessed", "Environment", "${Environment}" ],
+                  [ ".", "LogGroupsRemediated", ".", "." ],
+                  [ ".", "RemediationErrors", ".", "." ]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Compliance Metrics"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  LambdaFunctionArn:
+    Description: ARN of the LogGuardian Lambda function
+    Value: !GetAtt LogGuardianLambda.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaFunctionArn"
+
+  KMSKeyArn:
+    Description: ARN of the KMS key used for log group encryption
+    Value: !If 
+      - ShouldCreateKMSKey
+      - !GetAtt LogGuardianKMSKey.Arn
+      - !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:${KMSKeyAlias}"
+    Export:
+      Name: !Sub "${AWS::StackName}-KMSKeyArn"
+
+  EventBridgeEncryptionRuleArn:
+    Description: ARN of the EventBridge rule for encryption compliance checks
+    Value: !If 
+      - ShouldCreateEventBridgeRule
+      - !GetAtt LogGuardianEncryptionScheduleRule.Arn
+      - ""
+    Export:
+      Name: !Sub "${AWS::StackName}-EventBridgeEncryptionRuleArn"
+
+  EventBridgeRetentionRuleArn:
+    Description: ARN of the EventBridge rule for retention compliance checks
+    Value: !If 
+      - ShouldCreateEventBridgeRule
+      - !GetAtt LogGuardianRetentionScheduleRule.Arn
+      - ""
+    Export:
+      Name: !Sub "${AWS::StackName}-EventBridgeRetentionRuleArn"
+
+  DashboardURL:
+    Description: URL to the CloudWatch dashboard
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=LogGuardian-${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-DashboardURL"
+
+  ManualInvocationCommands:
+    Description: AWS CLI commands to manually invoke LogGuardian for each rule
+    Value: !Sub |
+      # Trigger encryption compliance check:
+      aws lambda invoke \
+        --function-name logguardian-compliance-${Environment} \
+        --payload '{"type":"config-rule-evaluation","configRuleName":"logguardian-encryption-${Environment}","region":"${AWS::Region}","batchSize":20}' \
+        response.json
+      
+      # Trigger retention compliance check:
+      aws lambda invoke \
+        --function-name logguardian-compliance-${Environment} \
+        --payload '{"type":"config-rule-evaluation","configRuleName":"logguardian-retention-${Environment}","region":"${AWS::Region}","batchSize":20}' \
+        response.json
+
+  DeploymentSummary:
+    Description: Deployment configuration summary
+    Value: !Sub |
+      LogGuardian deployed successfully in ${Environment} environment:
+      - Lambda Function: logguardian-compliance-${Environment}
+      - KMS Key: ${KMSKeyAlias}
+      - Schedule: ${ScheduleExpression} (both encryption & retention rules)
+      - Retention: ${DefaultRetentionDays} days
+      - Region: ${AWS::Region}
+      - Config Rules: logguardian-encryption-${Environment}, logguardian-retention-${Environment}

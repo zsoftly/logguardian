@@ -55,18 +55,9 @@ aws lambda create-function \
 Set environment variables for the Lambda function:
 
 ```bash
-# Required
-KMS_KEY_ALIAS=alias/cloudwatch-logs-compliance
-DEFAULT_RETENTION_DAYS=365
-
-# Optional
-SUPPORTED_REGIONS=ca-central-1,ca-west-1,us-east-2
-DRY_RUN=false
-BATCH_LIMIT=100
-
-# Region-specific overrides
-KMS_KEY_ALIAS_us_west_2=alias/cloudwatch-logs-west
-DEFAULT_RETENTION_DAYS_us_west_2=180
+# Multi-region environment variables (alternative approach)
+KMS_KEY_ALIAS_CA_WEST_1=alias/cloudwatch-logs-west
+DEFAULT_RETENTION_DAYS_CA_WEST_1=180
 ```
 
 ### Environment Variable Details
@@ -168,9 +159,9 @@ The function includes several memory optimization features:
 {
   "KMS_KEY_ALIAS": "alias/cloudwatch-logs-compliance",
   "DEFAULT_RETENTION_DAYS": "365",
-  "SUPPORTED_REGIONS": "ca-central-1,ca-west-1,us-east-2",
-  "KMS_KEY_ALIAS_eu_west_1": "alias/cloudwatch-logs-eu",
-  "DEFAULT_RETENTION_DAYS_eu_west_1": "180"
+  "SUPPORTED_REGIONS": "ca-central-1,ca-west-1",
+  "KMS_KEY_ALIAS_EU_WEST_1": "alias/cloudwatch-logs-eu",
+  "DEFAULT_RETENTION_DAYS_EU_WEST_1": "180"
 }
 ```
 

@@ -1,0 +1,435 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LogGuardian - Complete CloudWatch Log Group Compliance Solution'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Deployment Configuration"
+        Parameters:
+          - Environment
+          - DeploymentBucket
+          - TemplatesBucket
+      - Label:
+          default: "Lambda Configuration"  
+        Parameters:
+          - LambdaCodeKey
+          - LambdaMemorySize
+          - LambdaTimeout
+      - Label:
+          default: "Optional Components"
+        Parameters:
+          - CreateKMSKey
+          - CreateConfigRules
+          - CreateEventBridgeRule
+          - EnableDetailedMonitoring
+          - CreateDashboard
+      - Label:
+          default: "KMS Configuration"
+        Parameters:
+          - KMSKeyAlias
+      - Label:
+          default: "Retention Policy"
+        Parameters:
+          - DefaultRetentionDays
+      - Label:
+          default: "Monitoring"
+        Parameters:
+          - LogLevel
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Environment name (flexible - can be dev, staging, prod, or any other name)
+    Default: dev
+
+  DeploymentBucket:
+    Type: String
+    Description: S3 bucket name for deployment artifacts
+    
+  TemplatesBucket:
+    Type: String
+    Description: S3 bucket for nested CloudFormation templates (leave empty or set to 'none' to use inline resources)
+    Default: ""
+    
+  LambdaCodeKey:
+    Type: String
+    Description: S3 key for Lambda deployment package
+    Default: lambda/logguardian.zip
+    
+  LambdaMemorySize:
+    Type: Number
+    Description: Memory size for Lambda function (MB)
+    Default: 512
+    MinValue: 128
+    MaxValue: 3008
+    
+  LambdaTimeout:
+    Type: Number
+    Description: Timeout for Lambda function (seconds)
+    Default: 900
+    MinValue: 1
+    MaxValue: 900
+
+  DefaultRetentionDays:
+    Type: Number
+    Description: Default retention period for log groups in days
+    Default: 30
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+
+  LogLevel:
+    Type: String
+    Description: Logging level for Lambda function
+    Default: INFO
+    AllowedValues: [DEBUG, INFO, WARN, ERROR]
+
+  KMSKeyAlias:
+    Type: String
+    Description: Alias for KMS key (will create alias/logguardian-<alias>-<environment>)
+    Default: logguardian
+
+  # Optional Components
+  CreateKMSKey:
+    Type: String
+    Description: Create KMS key for log group encryption
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    
+  CreateConfigRules:
+    Type: String
+    Description: Create AWS Config rules for compliance monitoring
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    
+  CreateEventBridgeRule:
+    Type: String
+    Description: Create EventBridge rule for scheduled execution
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    
+  EnableDetailedMonitoring:
+    Type: String
+    Description: Enable detailed CloudWatch monitoring
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    
+  CreateDashboard:
+    Type: String
+    Description: Create CloudWatch dashboard for monitoring
+    Default: "true"
+    AllowedValues: ["true", "false"]
+
+Conditions:
+  # Control creation of optional components
+  ShouldCreateKMSKey: !Equals [!Ref CreateKMSKey, "true"]
+  ShouldCreateConfigRules: !Equals [!Ref CreateConfigRules, "true"]
+  ShouldCreateEventBridgeRule: !Equals [!Ref CreateEventBridgeRule, "true"]
+  ShouldCreateMonitoring: !Equals [!Ref EnableDetailedMonitoring, "true"]
+  ShouldCreateDashboard: !Equals [!Ref CreateDashboard, "true"]
+  
+  # Template bucket conditions - use nested templates if bucket is provided and not "none"
+  UseNestedTemplates: !And 
+    - !Not [!Equals [!Ref TemplatesBucket, ""]]
+    - !Not [!Equals [!Ref TemplatesBucket, "none"]]
+    
+  # Combined conditions for resource creation
+  CreateNestedKMS: !And 
+    - !Condition UseNestedTemplates
+    - !Condition ShouldCreateKMSKey
+  CreateNestedConfigRules: !And 
+    - !Condition UseNestedTemplates
+    - !Condition ShouldCreateConfigRules
+  CreateNestedEventBridge: !And 
+    - !Condition UseNestedTemplates  
+    - !Condition ShouldCreateEventBridgeRule
+  CreateInlineKMSKey: !And 
+    - !Condition ShouldCreateKMSKey
+    - !Not [!Condition UseNestedTemplates]
+  CreateInlineResources: !Not [!Condition UseNestedTemplates]
+
+Resources:
+  # KMS Key Stack (Nested)
+  KMSStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateNestedKMS
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/04-kms-key.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        KMSKeyAlias: !Ref KMSKeyAlias
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # IAM Roles Stack (Nested)
+  IAMStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: UseNestedTemplates
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/02-iam-roles.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        KMSKeyArn: !If
+          - ShouldCreateKMSKey
+          - !GetAtt KMSStack.Outputs.KMSKeyArn
+          - ""
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Lambda Function Stack (Nested)
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: UseNestedTemplates
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/03-lambda-function.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        DeploymentBucket: !Ref DeploymentBucket
+        LambdaCodeKey: !Ref LambdaCodeKey
+        LambdaMemorySize: !Ref LambdaMemorySize
+        LambdaTimeout: !Ref LambdaTimeout
+        LogLevel: !Ref LogLevel
+        LambdaExecutionRoleArn: !GetAtt IAMStack.Outputs.LambdaExecutionRoleArn
+        KMSKeyArn: !If
+          - ShouldCreateKMSKey
+          - !GetAtt KMSStack.Outputs.KMSKeyArn
+          - ""
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Config Rules Stack (Nested)
+  ConfigStack:
+    Type: AWS::CloudFormation::Stack  
+    Condition: CreateNestedConfigRules
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/05-config-rules.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        DefaultRetentionDays: !Ref DefaultRetentionDays
+        ConfigServiceRoleArn: !GetAtt IAMStack.Outputs.ConfigServiceRoleArn
+        LambdaFunctionName: !GetAtt LambdaStack.Outputs.LambdaFunctionName
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # EventBridge Rules Stack (Nested)
+  EventBridgeStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateNestedEventBridge
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/06-eventbridge-rules.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        LambdaFunctionArn: !GetAtt LambdaStack.Outputs.LambdaFunctionArn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Monitoring Stack (Nested)
+  MonitoringStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: UseNestedTemplates
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/07-monitoring.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        LambdaFunctionName: !GetAtt LambdaStack.Outputs.LambdaFunctionName
+        EnableDetailedMonitoring: !Ref EnableDetailedMonitoring
+        CreateDashboard: !Ref CreateDashboard
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Inline KMS Key (when not using nested templates)
+  InlineKMSKey:
+    Type: AWS::KMS::Key
+    Condition: CreateInlineKMSKey
+    Properties:
+      Description: !Sub "LogGuardian KMS key for ${Environment} environment"
+      KeyPolicy:
+        Statement:
+          - Sid: Enable root permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: Allow CloudWatch Logs
+            Effect: Allow
+            Principal:
+              Service: !Sub "logs.${AWS::Region}.amazonaws.com"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:CreateGrant
+              - kms:DescribeKey
+            Resource: "*"
+            Condition:
+              ArnEquals:
+                "kms:EncryptionContext:aws:logs:arn": !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+      Tags:
+        - Key: Name
+          Value: !Sub "logguardian-${KMSKeyAlias}-${Environment}"
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Inline KMS Key Alias (when not using nested templates)
+  InlineKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Condition: CreateInlineKMSKey
+    Properties:
+      AliasName: !Sub "alias/logguardian-${KMSKeyAlias}-${Environment}"
+      TargetKeyId: !Ref InlineKMSKey
+
+  # Inline IAM Execution Role (when not using nested templates)
+  InlineLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: CreateInlineResources
+    Properties:
+      RoleName: !Sub "LogGuardian-ExecutionRole-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LogGuardianPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:PutRetentionPolicy
+                  - logs:AssociateKmsKey
+                  - logs:CreateLogGroup
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey*
+                  - kms:DescribeKey
+                Resource:
+                  - !If
+                    - ShouldCreateKMSKey
+                    - !GetAtt InlineKMSKey.Arn
+                    - !Ref AWS::NoValue
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+  # Inline Lambda Function (when not using nested templates)
+  InlineLambdaFunction:
+    Type: AWS::Lambda::Function
+    Condition: CreateInlineResources
+    Properties:
+      FunctionName: !Sub "LogGuardian-${Environment}"
+      Runtime: provided.al2023
+      Handler: main
+      Role: !GetAtt InlineLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: !Ref LambdaCodeKey
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Environment:
+        Variables:
+          LOG_LEVEL: !Ref LogLevel
+          ENVIRONMENT: !Ref Environment
+          KMS_KEY_ARN: !If
+            - ShouldCreateKMSKey
+            - !GetAtt InlineKMSKey.Arn
+            - ""
+          DEFAULT_RETENTION_DAYS: !Ref DefaultRetentionDays
+          KMS_KEY_ALIAS: !Sub "alias/logguardian-${KMSKeyAlias}-${Environment}"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: LogGuardian
+
+Outputs:
+  StackName:
+    Description: Name of the CloudFormation stack
+    Value: !Ref AWS::StackName
+    Export:
+      Name: !Sub "${AWS::StackName}-StackName"
+
+  Environment:
+    Description: Environment name
+    Value: !Ref Environment
+    Export:
+      Name: !Sub "${AWS::StackName}-Environment"
+
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Value: !If
+      - UseNestedTemplates
+      - !GetAtt LambdaStack.Outputs.LambdaFunctionName
+      - !Ref InlineLambdaFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaFunctionName"
+
+  LambdaFunctionArn:
+    Description: ARN of the Lambda function
+    Value: !If
+      - UseNestedTemplates
+      - !GetAtt LambdaStack.Outputs.LambdaFunctionArn
+      - !GetAtt InlineLambdaFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaFunctionArn"
+
+  ExecutionRoleArn:
+    Description: ARN of the Lambda execution role
+    Value: !If
+      - UseNestedTemplates
+      - !GetAtt IAMStack.Outputs.LambdaExecutionRoleArn
+      - !GetAtt InlineLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ExecutionRoleArn"
+
+  KMSKeyArn:
+    Condition: ShouldCreateKMSKey
+    Description: ARN of the KMS key
+    Value: !If
+      - UseNestedTemplates
+      - !GetAtt KMSStack.Outputs.KMSKeyArn
+      - !GetAtt InlineKMSKey.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-KMSKeyArn"
+
+  KMSKeyAlias:
+    Condition: ShouldCreateKMSKey
+    Description: Alias of the KMS key
+    Value: !If
+      - UseNestedTemplates
+      - !GetAtt KMSStack.Outputs.KMSKeyAlias
+      - !Ref InlineKMSKeyAlias
+    Export:
+      Name: !Sub "${AWS::StackName}-KMSKeyAlias"
