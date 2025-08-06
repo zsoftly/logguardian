@@ -12,7 +12,7 @@ Metadata:
     ReadmeUrl: README.md
     Labels: ['cloudwatch', 'compliance', 'security', 'kms', 'logs']
     HomePageUrl: https://github.com/zsoftly/logguardian
-    SemanticVersion: 1.0.0
+    SemanticVersion: 0.1.0-beta.2
     SourceCodeUrl: https://github.com/zsoftly/logguardian
 
 Parameters:
@@ -66,6 +66,23 @@ Parameters:
     Default: "false"
     Description: Create CloudWatch dashboard for monitoring (recommended for production only)
     AllowedValues: ["true", "false"]
+
+  # Resource Tagging Parameters
+  ProductName:
+    Type: String
+    Default: "LogGuardian"
+    Description: Product name for resource tagging
+
+  Owner:
+    Type: String
+    Default: "ZSoftly"
+    Description: Owner/Team responsible for this deployment
+
+  ManagedBy:
+    Type: String
+    Default: "CloudFormation"
+    Description: How this stack is managed
+    AllowedValues: ["CloudFormation", "SAM", "Terraform"]
 
   LambdaMemorySize:
     Type: Number
@@ -124,8 +141,12 @@ Globals:
         DRY_RUN: 'false'
         BATCH_LIMIT: '100'
     Tags:
+      Product: !Ref ProductName
+      Owner: !Ref Owner
       Environment: !Ref Environment
+      ManagedBy: !Ref ManagedBy
       Application: LogGuardian
+      Version: "0.1.0-beta.2"
 
 Resources:
   # KMS Key for Log Group Encryption

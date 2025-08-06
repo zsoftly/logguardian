@@ -67,25 +67,47 @@ We've replaced the simple multi-region script with a comprehensive deployment to
 ### Customer Infrastructure Integration
 
 ```bash
-# Customer with existing KMS key
-./scripts/logguardian-deploy.sh deploy-customer \
-  -e prod \
-  -r ca-central-1 \
-  --existing-kms-key alias/customer-logs-ca \
-  --customer-tag-prefix "ACME-LogGuardian"
+# Customer with existing KMS key and custom tagging
+./scripts/logguardian-deploy.sh deploy-customer 
+  -e prod 
+  -r ca-central-1 
+  --existing-kms-key alias/customer-logs-ca 
+  --customer-tag-prefix "ACME-LogGuardian" 
+  --owner "ACME-Platform-Team"
 
-# Different retention policies per region
-./scripts/logguardian-deploy.sh deploy-multi \
-  -e compliance \
-  -r us-east-1 \
-  --retention-days 2555 \
-  --existing-kms-key alias/sox-compliance
+# Multi-region with different owners per region
+./scripts/logguardian-deploy.sh deploy-customer 
+  -e prod 
+  -r us-east-1 
+  --existing-kms-key alias/sox-compliance 
+  --retention-days 2555 
+  --owner "Compliance-Team" 
+  --product-name "SOX-LogGuardian"
 
-./scripts/logguardian-deploy.sh deploy-multi \
-  -e compliance \
-  -r eu-west-1 \
-  --retention-days 2190 \
-  --existing-kms-key alias/gdpr-compliance
+./scripts/logguardian-deploy.sh deploy-customer 
+  -e prod 
+  -r eu-west-1 
+  --existing-kms-key alias/gdpr-compliance 
+  --retention-days 2190 
+  --owner "GDPR-Team" 
+  --product-name "GDPR-LogGuardian"
+```
+
+### Resource Tagging Examples
+
+```bash
+# Enterprise deployment with custom tagging
+./scripts/logguardian-deploy.sh deploy-prod 
+  -r ca-central-1,ca-west-1 
+  --product-name "Enterprise-LogGuardian" 
+  --owner "Platform-Engineering-Team" 
+  --managed-by "SAM"
+
+# Development with team-specific tagging
+./scripts/logguardian-deploy.sh deploy-dev 
+  -r ca-central-1 
+  --owner "DevOps-Team" 
+  --product-name "Dev-LogGuardian"
 ```
 
 ## 🎛️ All Parameters
@@ -102,6 +124,9 @@ We've replaced the simple multi-region script with a comprehensive deployment to
 | `--enable-staggered` | Enable staggered scheduling | true |
 | `--existing-kms-key` | Use existing KMS key alias | (none) |
 | `--customer-tag-prefix` | Customer resource tag prefix | (none) |
+| `--product-name` | Product name for tagging | LogGuardian |
+| `--owner` | Owner/Team name for tagging | ZSoftly |
+| `--managed-by` | Management tool for tagging | SAM |
 | `--stack-prefix` | Stack name prefix | logguardian |
 | `-v, --verbose` | Verbose output | false |
 

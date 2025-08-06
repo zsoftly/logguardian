@@ -71,15 +71,35 @@ GLOBAL OPTIONS:
     -v, --verbose               Verbose output
     -h, --help                  Show help
 
+DEPLOYMENT OPTIONS:
+    --retention-days DAYS       Log retention in days [default: $DEFAULT_RETENTION_DAYS]
+    --s3-expiration-days DAYS   S3 data expiration days [default: $DEFAULT_S3_EXPIRATION_DAYS]
+    --lambda-memory MB          Lambda memory size [default: $DEFAULT_LAMBDA_MEMORY]
+    --lambda-timeout SEC        Lambda timeout [default: $DEFAULT_LAMBDA_TIMEOUT]
+    --create-dashboard BOOL     Create CloudWatch dashboard [default: true]
+    --enable-staggered BOOL     Enable staggered scheduling [default: true]
+
+CUSTOMER INTEGRATION:
+    --existing-kms-key ALIAS    Use existing KMS key alias
+    --customer-tag-prefix NAME  Customer resource tag prefix
+
+RESOURCE TAGGING:
+    --product-name NAME         Product name for tagging [default: LogGuardian]
+    --owner NAME                Owner/Team name [default: ZSoftly]
+    --managed-by TOOL           Management tool [default: SAM]
+
 EXAMPLES:
     # Deploy to sandbox in two regions
     $0 deploy-multi -e sandbox -r ca-central-1,ca-west-1
 
-    # Deploy production with custom settings
-    $0 deploy-prod -r us-east-1,eu-west-1 --retention-days 2555
+    # Deploy production with custom settings and tagging
+    $0 deploy-prod -r us-east-1,eu-west-1 --retention-days 2555 --owner "Platform-Team"
 
-    # Deploy with customer's existing KMS key
-    $0 deploy-customer -e prod -r ca-central-1 --existing-kms-key alias/customer-logs
+    # Deploy with customer's existing KMS key and custom tags
+    $0 deploy-customer -e prod -r ca-central-1 \
+      --existing-kms-key alias/customer-logs \
+      --customer-tag-prefix "ACME-LogGuardian" \
+      --owner "ACME-SecurityTeam"
 
     # Check deployment status
     $0 status -e prod
@@ -113,6 +133,11 @@ parse_args() {
     EXISTING_CONFIG_RULE=""
     CREATE_CONFIG_RULES="true"
     CUSTOMER_TAG_PREFIX=""
+    
+    # Resource tagging parameters
+    PRODUCT_NAME="LogGuardian"
+    OWNER="ZSoftly"
+    MANAGED_BY="SAM"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -172,6 +197,18 @@ parse_args() {
                 ;;
             --customer-tag-prefix)
                 CUSTOMER_TAG_PREFIX="$2"
+                shift 2
+                ;;
+            --product-name)
+                PRODUCT_NAME="$2"
+                shift 2
+                ;;
+            --owner)
+                OWNER="$2"
+                shift 2
+                ;;
+            --managed-by)
+                MANAGED_BY="$2"
                 shift 2
                 ;;
             -v|--verbose)
@@ -244,14 +281,19 @@ build_parameter_overrides() {
     params="$params LambdaMemorySize=$LAMBDA_MEMORY"
     params="$params LambdaTimeout=$LAMBDA_TIMEOUT"
     
+    # Add resource tagging parameters
+    local product_name="$PRODUCT_NAME"
+    if [ -n "$CUSTOMER_TAG_PREFIX" ]; then
+        product_name="$CUSTOMER_TAG_PREFIX"
+    fi
+    
+    params="$params ProductName=$product_name"
+    params="$params Owner=$OWNER"
+    params="$params ManagedBy=$MANAGED_BY"
+    
     # Add KMS key parameters if specified
     if [ -n "$EXISTING_KMS_KEY" ]; then
         params="$params KMSKeyAlias=$EXISTING_KMS_KEY"
-    fi
-    
-    # Add customer-specific parameters
-    if [ -n "$CUSTOMER_TAG_PREFIX" ]; then
-        params="$params CustomerTagPrefix=$CUSTOMER_TAG_PREFIX"
     fi
     
     echo "$params"
@@ -268,19 +310,31 @@ deploy_to_region() {
     
     local parameter_overrides=$(build_parameter_overrides)
     local confirm_flag=""
+    local stack_tags=""
     
     if [ "$confirm_changeset" = "false" ]; then
         confirm_flag="--no-confirm-changeset"
     fi
     
+    # Build stack-level tags following AWS best practices
+    local product_name="$PRODUCT_NAME"
+    if [ -n "$CUSTOMER_TAG_PREFIX" ]; then
+        product_name="$CUSTOMER_TAG_PREFIX"
+    fi
+    
+    # AWS tagging best practices: Product, Owner, Environment, ManagedBy, Application, Version, CreatedBy
+    stack_tags="Product=$product_name Owner=$OWNER Environment=$ENVIRONMENT ManagedBy=$MANAGED_BY Application=LogGuardian Version=0.1.0-beta.2 CreatedBy=SAM-Deploy"
+    
     if [ "$VERBOSE" = "true" ]; then
         log_info "Parameter overrides: $parameter_overrides"
+        log_info "Stack tags: $stack_tags"
     fi
     
     sam deploy \
         --template-file "$TEMPLATE" \
         --stack-name "$stack_name" \
         --parameter-overrides $parameter_overrides \
+        --tags "$stack_tags" \
         --capabilities CAPABILITY_IAM \
         --region "$region" \
         $confirm_flag

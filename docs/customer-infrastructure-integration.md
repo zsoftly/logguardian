@@ -126,17 +126,38 @@ Environment:
 
 ```bash
 # Customer has existing KMS keys per region and wants to use them
-sam deploy --template-file template-enhanced.yaml \
-  --stack-name logguardian-enterprise-ca-central-1 \
-  --parameter-overrides \
-    Environment=prod \
-    CreateKMSKey=false \
-    ExistingKMSKeyArn=arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012 \
-    CreateMonitoringDashboard=true \
-    CustomerTagPrefix="ACME-LogGuardian" \
-    DefaultRetentionDays=2555 \
-  --region ca-central-1 \
-  --capabilities CAPABILITY_IAM
+./scripts/logguardian-deploy.sh deploy-customer \
+  -e prod \
+  -r ca-central-1 \
+  --existing-kms-key alias/enterprise-logs-ca \
+  --customer-tag-prefix "ACME-LogGuardian" \
+  --owner "ACME-Platform-Team" \
+  --retention-days 2555
+  
+# This creates resources tagged with:
+# Product=ACME-LogGuardian, Owner=ACME-Platform-Team, Environment=prod, ManagedBy=SAM
+```
+
+### Example 2: Multi-Region Enterprise with Different Tagging per Region
+
+```bash
+# US regions - SOX compliance with specific owner
+./scripts/logguardian-deploy.sh deploy-customer \
+  -e compliance \
+  -r us-east-1 \
+  --existing-kms-key alias/sox-compliance-logs \
+  --customer-tag-prefix "MegaCorp-SOX-LogGuardian" \
+  --owner "MegaCorp-Compliance-Team" \
+  --retention-days 2555
+
+# EU regions - GDPR compliance with different owner
+./scripts/logguardian-deploy.sh deploy-customer \
+  -e compliance \
+  -r eu-west-1 \
+  --existing-kms-key alias/gdpr-compliance-logs \
+  --customer-tag-prefix "MegaCorp-GDPR-LogGuardian" \
+  --owner "MegaCorp-EU-Legal-Team" \
+  --retention-days 2190
 ```
 
 ### Example 2: Existing Config Service Setup
