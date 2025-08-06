@@ -102,13 +102,6 @@ Conditions:
   IsStaggeredScheduling: !Equals [!Ref EnableStaggeredScheduling, "true"]
   IsS3LifecycleEnabled: !Equals [!Ref EnableS3LifecycleRules, "true"]
   CreateDashboard: !Equals [!Ref CreateMonitoringDashboard, "true"]
-  IsProductionEnvironment: !Or
-    - !Equals [!Ref Environment, "prod"]
-    - !Equals [!Ref Environment, "production"]
-  IsDevelopmentEnvironment: !Or
-    - !Equals [!Ref Environment, "dev"]
-    - !Equals [!Ref Environment, "sandbox"]
-    - !Equals [!Ref Environment, "staging"]
   IsHourlySchedule: !Or
     - !Equals [!Ref ScheduleExpression, "rate(1 hour)"]
     - !Equals [!Ref ScheduleExpression, "rate(2 hours)"]
@@ -184,9 +177,21 @@ Resources:
       AliasName: !Ref KMSKeyAlias
       TargetKeyId: !Ref LogGuardianKMSKey
 
+  # Lambda Function Log Group (Pre-create to ensure compliance)
+  LogGuardianFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/logguardian-compliance-${Environment}"
+      RetentionInDays: !Ref DefaultRetentionDays
+      KmsKeyId: !GetAtt LogGuardianKMSKey.Arn
+      Tags:
+        - Key: Purpose
+          Value: "Lambda function logs for LogGuardian compliance automation"
+
   # SAM Lambda Function
   LogGuardianFunction:
     Type: AWS::Serverless::Function
+    DependsOn: LogGuardianFunctionLogGroup
     Properties:
       FunctionName: !Sub "logguardian-compliance-${Environment}"
       CodeUri: build/
