@@ -54,5 +54,13 @@
   {
     "ParameterKey": "ScheduleExpression",
     "ParameterValue": "rate(6 hours)"
+  },
+  {
+    "ParameterKey": "EncryptionPatterns",
+    "ParameterValue": "^.*-log-group-encrypted$,^cloudwatch-log-group-encrypted$,^cw-loggroup-encrypted$,^.*-logs?-encryption$,^.*-kms-encrypted-logs?$,^logguardian-.*-encryption$"
+  },
+  {
+    "ParameterKey": "RetentionPattern",
+    "ParameterValue": "^.*-retention-period-check$,^cloudwatch-log-group-retention$,^cw-loggroup-retention-period-check$,^.*-logs?-retention$,^.*-log-retention-policy$,^logguardian-.*-retention$"
   }
 ]

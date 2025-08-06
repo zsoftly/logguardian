@@ -59,9 +59,10 @@ func (mrs *MultiRegionComplianceService) AddRegion(region string, serviceConfig 
 
 	// Create compliance service for this region
 	service := &ComplianceService{
-		logsClient: logsClient,
-		kmsClient:  kmsClient,
-		config:     serviceConfig,
+		logsClient:     logsClient,
+		kmsClient:      kmsClient,
+		ruleClassifier: types.NewRuleClassifier(), // Initialize rule classifier
+		config:         serviceConfig,
 	}
 
 	mrs.serviceConfigs[region] = serviceConfig

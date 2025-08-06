@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -68,25 +67,7 @@ func handleUnifiedRequest(ctx context.Context, h *handler.ComplianceHandler, req
 
 		return h.HandleConfigRuleEvaluationRequest(ctx, request.ConfigRuleName, request.Region, batchSize)
 
-	case "":
-		// For backward compatibility, try to parse as a direct Config event
-		slog.Info("No type specified, attempting to parse as Config event for backward compatibility")
-
-		// Try to marshal the entire request as a Config event
-		eventBytes, err := json.Marshal(request)
-		if err != nil {
-			return fmt.Errorf("failed to parse request as Config event: %w", err)
-		}
-
-		// Check if it looks like a Config event by trying to unmarshal it
-		var testEvent types.ConfigEvent
-		if err := json.Unmarshal(eventBytes, &testEvent); err == nil && testEvent.ConfigRuleName != "" {
-			return h.HandleConfigEvent(ctx, eventBytes)
-		}
-
-		return fmt.Errorf("unable to determine request type - please specify 'type' field")
-
 	default:
-		return fmt.Errorf("unsupported request type: %s", request.Type)
+		return fmt.Errorf("unsupported request type: %s (supported types: 'config-event', 'config-rule-evaluation')", request.Type)
 	}
 }

@@ -202,8 +202,8 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 
 			// Process each resource in the batch using pre-validated KMS info
 			for _, resource := range batchResources {
-				// Convert to ComplianceResult format
-				compliance := s.convertToComplianceResult(resource)
+				// Convert to ComplianceResult format for this specific Config rule
+				compliance := s.convertToComplianceResultForRule(batchCtx.configRuleName, resource)
 
 				// Use optimized remediation with pre-validated KMS info
 				remediationResult, err := s.remediateLogGroupWithBatchContext(ctx, compliance, batchCtx)

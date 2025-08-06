@@ -46,30 +46,7 @@ This file contains examples of how to invoke the LogGuardian Lambda function to 
 }
 ```
 
-## Example 3: Backward Compatibility (Legacy Format)
-
-```json
-{
-  "configRuleName": "cloudwatch-log-group-encrypted",
-  "accountId": "123456789012",
-  "configRuleInvokingEvent": {
-    "configurationItem": {
-      "resourceType": "AWS::Logs::LogGroup",
-      "resourceName": "/aws/lambda/legacy-function",
-      "awsRegion": "ca-central-1",
-      "awsAccountId": "123456789012",
-      "configurationItemStatus": "ResourceDiscovered",
-      "configuration": {
-        "logGroupName": "/aws/lambda/legacy-function",
-        "retentionInDays": null,
-        "kmsKeyId": ""
-      }
-    }
-  }
-}
-```
-
-## Example 4: AWS CLI Invocation
+## Example 3: AWS CLI Invocation
 
 ```bash
 # Process all non-compliant resources from a Config rule
@@ -87,7 +64,7 @@ aws lambda invoke \
 cat response.json
 ```
 
-## Example 5: EventBridge Rule for Scheduled Processing
+## Example 4: EventBridge Rule for Scheduled Processing
 
 ```json
 {
@@ -108,7 +85,7 @@ cat response.json
 }
 ```
 
-## Example 6: Multi-Region Processing
+## Example 5: Multi-Region Processing
 
 ```bash
 # Process different regions with separate invocations

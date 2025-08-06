@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -66,6 +65,7 @@ type ComplianceService struct {
 	kmsClient         KMSClientInterface
 	configClient      ConfigServiceClientInterface
 	configEvalService *ConfigEvaluationService
+	ruleClassifier    *types.RuleClassifier
 	config            ServiceConfig
 }
 
@@ -102,6 +102,7 @@ func NewComplianceService(cfg aws.Config) *ComplianceService {
 		kmsClient:         kms.NewFromConfig(cfg),
 		configClient:      configservice.NewFromConfig(cfg),
 		configEvalService: NewConfigEvaluationService(cfg),
+		ruleClassifier:    types.NewRuleClassifier(),
 		config:            config,
 	}
 }
@@ -787,115 +788,6 @@ func getEnvAsIntOrDefault(key string, defaultValue int) int {
 	return defaultValue
 }
 
-// ProcessNonCompliantResources processes multiple non-compliant resources in batches
-func (s *ComplianceService) ProcessNonCompliantResources(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error) {
-	startTime := time.Now()
-
-	slog.Info("Starting batch remediation",
-		"config_rule", request.ConfigRuleName,
-		"region", request.Region,
-		"total_resources", len(request.NonCompliantResults),
-		"batch_size", request.BatchSize)
-
-	result := &types.BatchRemediationResult{
-		TotalProcessed: len(request.NonCompliantResults),
-		Results:        make([]types.RemediationResult, 0),
-	}
-
-	// Process resources in batches to avoid overwhelming the AWS APIs
-	batchSize := request.BatchSize
-	if batchSize <= 0 {
-		batchSize = 10 // Default batch size
-	}
-
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	rateLimitCounter := 0
-
-	for i := 0; i < len(request.NonCompliantResults); i += batchSize {
-		end := i + batchSize
-		if end > len(request.NonCompliantResults) {
-			end = len(request.NonCompliantResults)
-		}
-
-		batch := request.NonCompliantResults[i:end]
-		wg.Add(1)
-
-		go func(batchResources []types.NonCompliantResource, batchIndex int) {
-			defer wg.Done()
-
-			slog.Info("Processing batch",
-				"batch_index", batchIndex,
-				"batch_size", len(batchResources))
-
-			for _, resource := range batchResources {
-				// Convert to ComplianceResult format
-				compliance := s.convertToComplianceResult(resource)
-
-				// Process the resource
-				remediationResult, err := s.RemediateLogGroup(ctx, compliance)
-
-				mu.Lock()
-				if err != nil {
-					// Handle rate limiting with exponential backoff
-					if isRateLimitError(err) {
-						rateLimitCounter++
-						slog.Warn("Rate limit encountered",
-							"resource", resource.ResourceName,
-							"error", err)
-
-						// Exponential backoff: start with 1 second for first retry
-						delay := 1 * time.Second
-						slog.Info("Retrying with exponential backoff", "delay", delay)
-						time.Sleep(delay)
-						remediationResult, err = s.RemediateLogGroup(ctx, compliance)
-					}
-
-					if err != nil {
-						result.FailureCount++
-						remediationResult = &types.RemediationResult{
-							LogGroupName: compliance.LogGroupName,
-							Region:       compliance.Region,
-							Success:      false,
-							Error:        err,
-						}
-					} else {
-						result.SuccessCount++
-					}
-				} else {
-					result.SuccessCount++
-				}
-
-				result.Results = append(result.Results, *remediationResult)
-				mu.Unlock()
-
-				// Small delay between resources in the same batch
-				time.Sleep(100 * time.Millisecond)
-			}
-
-			slog.Info("Batch completed", "batch_index", batchIndex)
-		}(batch, i/batchSize)
-
-		// Rate limiting: delay between batches
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	// Wait for all batches to complete
-	wg.Wait()
-
-	result.ProcessingDuration = time.Since(startTime)
-	result.RateLimitHits = rateLimitCounter
-
-	slog.Info("Batch remediation completed",
-		"total_processed", result.TotalProcessed,
-		"success_count", result.SuccessCount,
-		"failure_count", result.FailureCount,
-		"duration", result.ProcessingDuration,
-		"rate_limit_hits", result.RateLimitHits)
-
-	return result, nil
-}
-
 // GetNonCompliantResources retrieves non-compliant log groups from Config API
 func (s *ComplianceService) GetNonCompliantResources(ctx context.Context, configRuleName string, region string) ([]types.NonCompliantResource, error) {
 	return s.configEvalService.GetNonCompliantResources(ctx, configRuleName, region)
@@ -908,36 +800,53 @@ func (s *ComplianceService) ValidateResourceExistence(ctx context.Context, resou
 
 // Helper methods
 
-// convertToComplianceResult converts a NonCompliantResource to ComplianceResult
-func (s *ComplianceService) convertToComplianceResult(resource types.NonCompliantResource) types.ComplianceResult {
-	// Parse the compliance annotation to determine what's missing
-	missingEncryption := false
-	missingRetention := false
-
-	annotation := resource.Annotation
-	if annotation != "" {
-		if strings.Contains(strings.ToLower(annotation), "encryption") ||
-			strings.Contains(strings.ToLower(annotation), "kms") {
-			missingEncryption = true
-		}
-		if strings.Contains(strings.ToLower(annotation), "retention") {
-			missingRetention = true
-		}
+// convertToComplianceResultForRule converts a NonCompliantResource to ComplianceResult based on specific Config rule
+func (s *ComplianceService) convertToComplianceResultForRule(configRuleName string, resource types.NonCompliantResource) types.ComplianceResult {
+	result := types.ComplianceResult{
+		LogGroupName: resource.ResourceName,
+		Region:       resource.Region,
+		AccountId:    resource.AccountId,
 	}
 
-	// If annotation doesn't specify, assume both are missing for non-compliant resources
-	if !missingEncryption && !missingRetention {
-		missingEncryption = true
-		missingRetention = true
+	// Each Config rule evaluates ONLY its specific compliance requirement
+	// This ensures each rule evaluates ALL resources for its requirement independently
+	ruleType := s.ruleClassifier.ClassifyRule(configRuleName)
+
+	switch ruleType {
+	case types.RuleTypeEncryption:
+		// Encryption rule: ONLY evaluate encryption compliance
+		result.MissingEncryption = true // Resource is non-compliant for encryption
+		result.MissingRetention = false // Not this rule's concern
+
+		slog.Info("Encryption rule batch evaluation",
+			"log_group", resource.ResourceName,
+			"config_rule", configRuleName,
+			"compliance_type", resource.ComplianceType,
+			"rule_type", ruleType.String(),
+			"audit_action", "encryption_batch_compliance_check")
+
+	case types.RuleTypeRetention:
+		// Retention rule: ONLY evaluate retention compliance
+		result.MissingRetention = true   // Resource is non-compliant for retention
+		result.MissingEncryption = false // Not this rule's concern
+
+		slog.Info("Retention rule batch evaluation",
+			"log_group", resource.ResourceName,
+			"config_rule", configRuleName,
+			"compliance_type", resource.ComplianceType,
+			"rule_type", ruleType.String(),
+			"audit_action", "retention_batch_compliance_check")
+
+	default:
+		// Unknown rule - log and skip
+		slog.Warn("Unsupported Config rule in batch - no compliance evaluation performed",
+			"config_rule", configRuleName,
+			"log_group", resource.ResourceName,
+			"rule_type", "unknown",
+			"audit_action", "unsupported_rule_batch_skip")
+		result.MissingEncryption = false
+		result.MissingRetention = false
 	}
 
-	return types.ComplianceResult{
-		LogGroupName:      resource.ResourceName,
-		Region:            resource.Region,
-		AccountId:         resource.AccountId,
-		MissingEncryption: missingEncryption,
-		MissingRetention:  missingRetention,
-		CurrentRetention:  nil, // Will be determined during remediation
-		CurrentKmsKeyId:   "",  // Will be determined during remediation
-	}
+	return result
 }

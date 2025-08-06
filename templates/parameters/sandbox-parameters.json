@@ -58,5 +58,13 @@
   {
     "ParameterKey": "CreateDashboard",
     "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "EncryptionPatterns",
+    "ParameterValue": "^test-.*-encrypted$,^sandbox-.*-encryption$,^.*-log-group-encrypted$"
+  },
+  {
+    "ParameterKey": "RetentionPattern",
+    "ParameterValue": "^test-.*-retention$,^sandbox-.*-retention-check$,^.*-retention-period-check$"
   }
 ]

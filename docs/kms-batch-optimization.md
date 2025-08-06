@@ -106,11 +106,6 @@ The implementation is fully thread-safe with:
 - Concurrent batch processing support
 - Safe sharing of validation results across goroutines
 
-## Backwards Compatibility
-
-The optimization is **fully backwards compatible**:
-- Existing single-resource processing unchanged
-- Original `ProcessNonCompliantResources` method still available
-- New `ProcessNonCompliantResourcesOptimized` method used automatically
+## Performance Benefits
 
 This optimization demonstrates LogGuardian's commitment to performance and cost efficiency in enterprise-scale deployments.

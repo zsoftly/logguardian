@@ -86,8 +86,9 @@ func TestBatchKMSValidationCache(t *testing.T) {
 			mockLogs := new(MockLogsClientOptimized)
 
 			service := &ComplianceService{
-				kmsClient:  mockKMS,
-				logsClient: mockLogs,
+				kmsClient:      mockKMS,
+				logsClient:     mockLogs,
+				ruleClassifier: types.NewRuleClassifier(), // Initialize rule classifier
 				config: ServiceConfig{
 					DefaultKMSKeyAlias:   tt.keyAlias,
 					DefaultRetentionDays: 365,
@@ -98,7 +99,7 @@ func TestBatchKMSValidationCache(t *testing.T) {
 
 			ctx := context.Background()
 			request := types.BatchComplianceRequest{
-				ConfigRuleName: "test-rule",
+				ConfigRuleName: "cloudwatch-log-group-encrypted", // Use encryption rule for this test
 				Region:         "ca-central-1",
 				NonCompliantResults: []types.NonCompliantResource{
 					{ResourceName: "/aws/lambda/test1", ResourceType: "AWS::Logs::LogGroup"},
@@ -168,7 +169,7 @@ func TestProcessNonCompliantResourcesOptimized(t *testing.T) {
 		dryRun                  bool
 	}{
 		{
-			name: "successful batch processing with optimization",
+			name: "successful batch processing with optimization - encryption rule",
 			resources: []types.NonCompliantResource{
 				{ResourceName: "/aws/lambda/test1", ResourceType: "AWS::Logs::LogGroup"},
 				{ResourceName: "/aws/lambda/test2", ResourceType: "AWS::Logs::LogGroup"},
@@ -176,8 +177,8 @@ func TestProcessNonCompliantResourcesOptimized(t *testing.T) {
 			},
 			batchSize:               2,
 			expectedKMSValidations:  1, // Key optimization: only 1 validation for entire batch
-			expectedEncryptionCalls: 3, // One per resource
-			expectedRetentionCalls:  3, // One per resource
+			expectedEncryptionCalls: 3, // One per resource (encryption rule only applies encryption)
+			expectedRetentionCalls:  0, // Encryption rule does NOT apply retention
 			expectedSuccessCount:    3,
 			expectedFailureCount:    0,
 			dryRun:                  false,
@@ -205,8 +206,9 @@ func TestProcessNonCompliantResourcesOptimized(t *testing.T) {
 			mockLogs := new(MockLogsClientOptimized)
 
 			service := &ComplianceService{
-				kmsClient:  mockKMS,
-				logsClient: mockLogs,
+				kmsClient:      mockKMS,
+				logsClient:     mockLogs,
+				ruleClassifier: types.NewRuleClassifier(), // Initialize rule classifier
 				config: ServiceConfig{
 					DefaultKMSKeyAlias:   "alias/test-key",
 					DefaultRetentionDays: 365,
@@ -219,7 +221,7 @@ func TestProcessNonCompliantResourcesOptimized(t *testing.T) {
 
 			ctx := context.Background()
 			request := types.BatchComplianceRequest{
-				ConfigRuleName:      "test-rule",
+				ConfigRuleName:      "cloudwatch-log-group-encrypted", // Use encryption rule for batch test
 				Region:              "ca-central-1",
 				NonCompliantResults: tt.resources,
 				BatchSize:           tt.batchSize,
@@ -351,7 +353,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 	}
 
 	request := types.BatchComplianceRequest{
-		ConfigRuleName:      "test-rule",
+		ConfigRuleName:      "cloudwatch-log-group-retention", // Use retention rule for this test
 		Region:              "ca-central-1",
 		NonCompliantResults: resources,
 		BatchSize:           5,
@@ -362,8 +364,9 @@ func BenchmarkBatchProcessing(b *testing.B) {
 	mockLogs := new(MockLogsClientOptimized)
 
 	service := &ComplianceService{
-		kmsClient:  mockKMS,
-		logsClient: mockLogs,
+		kmsClient:      mockKMS,
+		logsClient:     mockLogs,
+		ruleClassifier: types.NewRuleClassifier(), // Initialize rule classifier
 		config: ServiceConfig{
 			DefaultKMSKeyAlias:   "alias/test-key",
 			DefaultRetentionDays: 365,

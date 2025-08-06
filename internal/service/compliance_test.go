@@ -141,8 +141,9 @@ func TestComplianceService_RemediateLogGroup(t *testing.T) {
 
 			// Create service
 			service := &ComplianceService{
-				logsClient: mockLogsClient,
-				kmsClient:  mockKmsClient,
+				logsClient:     mockLogsClient,
+				kmsClient:      mockKmsClient,
+				ruleClassifier: logguardiantypes.NewRuleClassifier(), // Initialize rule classifier
 				config: ServiceConfig{
 					DefaultKMSKeyAlias:   "alias/test-key",
 					DefaultRetentionDays: 365,
