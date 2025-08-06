@@ -13,12 +13,14 @@ import (
 // ComplianceHandler handles AWS Config compliance events
 type ComplianceHandler struct {
 	complianceService service.ComplianceServiceInterface
+	ruleClassifier    *types.RuleClassifier
 }
 
 // NewComplianceHandler creates a new compliance handler
 func NewComplianceHandler(complianceService service.ComplianceServiceInterface) *ComplianceHandler {
 	return &ComplianceHandler{
 		complianceService: complianceService,
+		ruleClassifier:    types.NewRuleClassifier(),
 	}
 }
 
@@ -52,16 +54,17 @@ func (h *ComplianceHandler) HandleConfigEvent(ctx context.Context, event json.Ra
 		return nil
 	}
 
-	// Check compliance status
-	compliance := h.analyzeCompliance(configItem)
+	// Check compliance status based on specific rule
+	compliance := h.analyzeComplianceForRule(configEvent.ConfigRuleName, configItem)
 
-	slog.Info("Compliance analysis completed",
+	slog.Info("Rule-specific compliance analysis completed",
 		"log_group", compliance.LogGroupName,
+		"config_rule", configEvent.ConfigRuleName,
 		"missing_encryption", compliance.MissingEncryption,
 		"missing_retention", compliance.MissingRetention,
 		"current_retention", compliance.CurrentRetention)
 
-	// Apply remediation if needed
+	// Apply remediation if needed for this specific rule's compliance requirement
 	if compliance.MissingEncryption || compliance.MissingRetention {
 		result, err := h.complianceService.RemediateLogGroup(ctx, compliance)
 		if err != nil {
@@ -79,43 +82,6 @@ func (h *ComplianceHandler) HandleConfigEvent(ctx context.Context, event json.Ra
 	} else {
 		slog.Info("Log group already compliant", "log_group", compliance.LogGroupName)
 	}
-
-	return nil
-}
-
-// HandleBatchConfigEvaluation handles batch processing of Config rule evaluation results
-func (h *ComplianceHandler) HandleBatchConfigEvaluation(ctx context.Context, event json.RawMessage) error {
-	slog.Info("Received batch Config evaluation event", "event_size", len(event))
-
-	// Parse the batch event
-	var batchRequest types.BatchComplianceRequest
-	if err := json.Unmarshal(event, &batchRequest); err != nil {
-		slog.Error("Failed to parse batch Config event", "error", err)
-		return fmt.Errorf("failed to parse batch Config event: %w", err)
-	}
-
-	slog.Info("Processing batch compliance event",
-		"config_rule", batchRequest.ConfigRuleName,
-		"region", batchRequest.Region,
-		"resource_count", len(batchRequest.NonCompliantResults),
-		"batch_size", batchRequest.BatchSize)
-
-	// Process the batch of non-compliant resources
-	result, err := h.complianceService.ProcessNonCompliantResources(ctx, batchRequest)
-	if err != nil {
-		slog.Error("Batch remediation failed",
-			"config_rule", batchRequest.ConfigRuleName,
-			"error", err)
-		return fmt.Errorf("batch remediation failed for rule %s: %w", batchRequest.ConfigRuleName, err)
-	}
-
-	slog.Info("Batch remediation completed",
-		"config_rule", batchRequest.ConfigRuleName,
-		"total_processed", result.TotalProcessed,
-		"success_count", result.SuccessCount,
-		"failure_count", result.FailureCount,
-		"duration", result.ProcessingDuration,
-		"rate_limit_hits", result.RateLimitHits)
 
 	return nil
 }
@@ -178,13 +144,13 @@ func (h *ComplianceHandler) HandleConfigRuleEvaluationRequest(ctx context.Contex
 		BatchSize:           batchSize,
 	}
 
-	// Step 4: Process the batch
-	result, err := h.complianceService.ProcessNonCompliantResources(ctx, batchRequest)
+	// Step 4: Process the batch using optimized method with KMS validation caching
+	result, err := h.complianceService.ProcessNonCompliantResourcesOptimized(ctx, batchRequest)
 	if err != nil {
-		slog.Error("Batch processing failed",
+		slog.Error("Optimized batch processing failed",
 			"config_rule", configRuleName,
 			"error", err)
-		return fmt.Errorf("batch processing failed: %w", err)
+		return fmt.Errorf("optimized batch processing failed: %w", err)
 	}
 
 	slog.Info("Config rule evaluation processing completed",
@@ -199,17 +165,57 @@ func (h *ComplianceHandler) HandleConfigRuleEvaluationRequest(ctx context.Contex
 	return nil
 }
 
-// analyzeCompliance checks what remediation is needed for a log group
-func (h *ComplianceHandler) analyzeCompliance(configItem types.ConfigurationItem) types.ComplianceResult {
+// analyzeComplianceForRule checks what remediation is needed based on the specific Config rule
+func (h *ComplianceHandler) analyzeComplianceForRule(configRuleName string, configItem types.ConfigurationItem) types.ComplianceResult {
 	config := configItem.Configuration
 
-	return types.ComplianceResult{
-		LogGroupName:      config.LogGroupName,
-		Region:            configItem.AwsRegion,
-		AccountId:         configItem.AwsAccountId,
-		MissingEncryption: config.KmsKeyId == "",
-		MissingRetention:  config.RetentionInDays == nil,
-		CurrentRetention:  config.RetentionInDays,
-		CurrentKmsKeyId:   config.KmsKeyId,
+	result := types.ComplianceResult{
+		LogGroupName:     config.LogGroupName,
+		Region:           configItem.AwsRegion,
+		AccountId:        configItem.AwsAccountId,
+		CurrentRetention: config.RetentionInDays,
+		CurrentKmsKeyId:  config.KmsKeyId,
 	}
+
+	// Each Config rule evaluates ONLY its specific compliance requirement
+	// This ensures each rule evaluates ALL resources for its requirement independently
+	ruleType := h.ruleClassifier.ClassifyRule(configRuleName)
+
+	switch ruleType {
+	case types.RuleTypeEncryption:
+		// Encryption rule: ONLY evaluate encryption compliance
+		result.MissingEncryption = config.KmsKeyId == ""
+		result.MissingRetention = false // Not this rule's concern
+
+		slog.Info("Encryption rule evaluation",
+			"log_group", config.LogGroupName,
+			"has_encryption", config.KmsKeyId != "",
+			"kms_key_id", config.KmsKeyId,
+			"rule_type", ruleType.String(),
+			"audit_action", "encryption_compliance_check")
+
+	case types.RuleTypeRetention:
+		// Retention rule: ONLY evaluate retention compliance
+		result.MissingRetention = config.RetentionInDays == nil
+		result.MissingEncryption = false // Not this rule's concern
+
+		slog.Info("Retention rule evaluation",
+			"log_group", config.LogGroupName,
+			"has_retention", config.RetentionInDays != nil,
+			"retention_days", config.RetentionInDays,
+			"rule_type", ruleType.String(),
+			"audit_action", "retention_compliance_check")
+
+	default:
+		// Unknown rule - log and skip
+		slog.Warn("Unsupported Config rule - no compliance evaluation performed",
+			"config_rule", configRuleName,
+			"log_group", config.LogGroupName,
+			"rule_type", "unknown",
+			"audit_action", "unsupported_rule_skip")
+		result.MissingEncryption = false
+		result.MissingRetention = false
+	}
+
+	return result
 }

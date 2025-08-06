@@ -24,7 +24,7 @@
 
 **→ [Launch LogGuardian from AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-logguardian)**
 
-### Manual Deployment
+### Manual Deployment (SAM)
 ```bash
 # Clone the repository
 git clone https://github.com/zsoftly/logguardian.git
@@ -33,12 +33,8 @@ cd logguardian
 # Build and package Lambda
 make build && make package
 
-# Deploy using CloudFormation (simple single-file template)
-aws cloudformation deploy \
-  --template-file templates/00-logguardian-simple.yaml \
-  --stack-name logguardian-sandbox \
-  --parameter-overrides Environment=sandbox DeploymentBucket=your-bucket \
-  --capabilities CAPABILITY_NAMED_IAM
+# Deploy using AWS SAM (recommended for marketplace)
+make sam-deploy-dev
 ```
 
 📖 **[Complete Deployment Guide](DEPLOYMENT.md)**
@@ -239,26 +235,50 @@ module "logguardian" {
 
 ## 📚 Documentation
 
-- [Go Lambda Function](docs/go-lambda-function.md) - Complete Lambda function documentation  
-- [Config Rule Evaluation](docs/config-rule-evaluation.md) - Batch processing non-compliant resources
-- [KMS Encryption Validation](docs/kms-encryption-validation.md) - KMS key validation and cross-region support
-- [Development Guide](docs/development.md) - Development setup and guidelines
-- [Architecture Deep Dive](docs/architecture.md) - Technical architecture details
-- [Security Best Practices](docs/security.md) - Security implementation guide
-- [🚀 Deployment Guide](DEPLOYMENT.md) - Complete deployment instructions and CloudFormation templates
-- [Monitoring & Alerting](docs/monitoring.md) - Monitoring setup guide
+## 📚 Documentation
 
-## CloudFormation Templates
+- **[Local SAM Testing](docs/local-testing.md)** - Comprehensive local Lambda testing with 9+ test scenarios
+- **[SAM vs CloudFormation](docs/sam-vs-cloudformation.md)** - Why we chose SAM over CloudFormation
+- **[AWS Marketplace SAM Deployment](docs/aws-marketplace-sam.md)** - Complete SAM deployment guide
+- **[Go Lambda Function](docs/go-lambda-function.md)** - Lambda function implementation details
+- **[Config Rule Evaluation](docs/config-rule-evaluation.md)** - Batch processing non-compliant resources
+- **[KMS Encryption Validation](docs/kms-encryption-validation.md)** - KMS key validation and cross-region support
+- **[Development Guide](docs/development.md)** - Development setup and guidelines
+- **[🚀 Deployment Guide](DEPLOYMENT.md)** - Complete SAM deployment instructions
 
-- `templates/00-logguardian-simple.yaml` - Single-file complete deployment
-- `templates/01-logguardian-main.yaml` - Modular main template  
-- `templates/02-iam-roles.yaml` - IAM roles and policies
-- `templates/03-lambda-function.yaml` - Lambda function configuration
-- `templates/04-kms-key.yaml` - KMS key and alias
-- `templates/05-config-rules.yaml` - AWS Config rules
-- `templates/06-eventbridge-rules.yaml` - EventBridge scheduled triggers
-- `templates/07-monitoring.yaml` - CloudWatch dashboard
-- `templates/08-logguardian-stacksets.yaml` - Multi-region StackSets deployment
+## AWS SAM Architecture
+
+LogGuardian uses AWS SAM (Serverless Application Model) for deployment, following AWS Marketplace best practices:
+
+### **SAM Template Structure**
+```
+template.yaml                 # SAM template (AWS Marketplace standard)
+├── Metadata                  # AWS Serverless Repository metadata
+├── Parameters                # Deployment configuration
+├── Resources                 
+│   ├── Lambda Function       # Go binary with provided.al2023 runtime
+│   ├── KMS Key              # Customer-managed encryption key
+│   ├── Config Rules         # Compliance monitoring
+│   ├── EventBridge Rules    # Scheduled execution
+│   └── CloudWatch Dashboard # Monitoring
+└── Outputs                   # Deployment results
+```
+
+### **Why SAM vs Traditional CloudFormation?**
+
+**SAM Benefits for AWS Marketplace:**
+- ✅ **Built-in Marketplace Support**: Native AWS Serverless Application Repository integration
+- ✅ **Simplified Lambda Packaging**: Automatic Go binary handling with `CodeUri`
+- ✅ **Local Testing**: `sam local` commands for development
+- ✅ **Template Validation**: Enhanced SAM-specific validation
+- ✅ **Event Source Integration**: Simplified EventBridge configuration
+- ✅ **Automatic IAM**: Policy generation from function requirements
+
+**Traditional CloudFormation Limitations:**
+- ❌ Manual ZIP creation and S3 upload required
+- ❌ No built-in local testing
+- ❌ Manual marketplace integration
+- ❌ More complex Lambda configuration
 
 ## Contributing
 

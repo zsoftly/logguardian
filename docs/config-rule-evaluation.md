@@ -1,39 +1,30 @@
-# Config Rule Evaluation Processing
+# Config Rule Evaluation: Smart Resource Processing
 
-**Why:** Process only non-compliant resources from AWS Config rules instead of scanning all log groups, achieving 90%+ cost reduction.
+## Core Value Proposition
 
-## Request Format
+**Process only non-compliant resources from AWS Config rules instead of scanning all log groups, achieving 90%+ cost reduction.**
 
-### Batch Processing
-```json
-{
-  "type": "config-rule-evaluation",
-  "configRuleName": "cloudwatch-log-group-encrypted",
-  "region": "ca-central-1",
-  "batchSize": 20
-}
-```
+## Why This Approach?
 
-### Individual Events
-```json
-{
-  "type": "config-event",
-  "configEvent": { /* standard Config event */ }
-}
-```
+| Traditional Approach | Config Rule Evaluation |
+|---------------------|------------------------|
+| Scan ALL log groups (~1000s) | Process only NON_COMPLIANT (~50-100) |
+| 100% API cost | ~5-10% API cost |
+| High latency | Fast, targeted processing |
+| Resource-intensive | Memory-efficient |
 
-## Benefits
+## Design Decision: Trust AWS Config
 
-- **Cost Efficiency**: Process ~5-10% of resources vs 100% scanning
-- **Performance**: Batch processing with rate limiting prevents API throttling  
-- **Reliability**: Trusts AWS Config's recent evaluation - deleted resources fail gracefully
-- **Scalability**: Handles pagination for large Config rule result sets
+We **trust AWS Config evaluations** and skip redundant validation:
 
-## Design Decision: No Resource Validation
+- ✅ **Config Rules are authoritative** - Recent evaluations from AWS
+- ✅ **Auto-cleanup** - Deleted resources won't appear in next run
+- ✅ **Graceful failure** - APIs handle non-existent resources safely
+- ✅ **Performance** - No unnecessary `DescribeLogGroups` calls
 
-We trust AWS Config rule evaluations and skip resource existence validation because:
+## Implementation Details
 
-1. **Config Rules are authoritative** - Resources come from recent AWS Config evaluations
-2. **Auto-cleanup** - Deleted resources won't appear in subsequent Config rule runs  
-3. **Graceful failure** - Remediation APIs handle non-existent resources safely
-4. **Performance** - Eliminates unnecessary DescribeLogGroups API calls
+- **Request formats**: See [examples.md](examples.md)
+- **Batch optimization**: See [kms-batch-optimization.md](kms-batch-optimization.md) 
+- **Rule classification**: See [rule-classification.md](rule-classification.md)
+- **Lambda architecture**: See [go-lambda-function.md](go-lambda-function.md)

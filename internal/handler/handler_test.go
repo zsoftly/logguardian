@@ -134,93 +134,7 @@ func TestComplianceHandler_HandleConfigEvent(t *testing.T) {
 	}
 }
 
-func TestComplianceHandler_analyzeCompliance(t *testing.T) {
-	handler := &ComplianceHandler{}
-
-	tests := []struct {
-		name                      string
-		configItem                types.ConfigurationItem
-		expectedMissingEncryption bool
-		expectedMissingRetention  bool
-	}{
-		{
-			name: "missing both encryption and retention",
-			configItem: types.ConfigurationItem{
-				AwsRegion:    "ca-central-1",
-				AwsAccountId: "123456789012",
-				Configuration: types.LogGroupConfiguration{
-					LogGroupName:    "/aws/lambda/test",
-					RetentionInDays: nil,
-					KmsKeyId:        "",
-				},
-			},
-			expectedMissingEncryption: true,
-			expectedMissingRetention:  true,
-		},
-		{
-			name: "missing only encryption",
-			configItem: types.ConfigurationItem{
-				AwsRegion:    "ca-central-1",
-				AwsAccountId: "123456789012",
-				Configuration: types.LogGroupConfiguration{
-					LogGroupName:    "/aws/lambda/test",
-					RetentionInDays: intPtr(365),
-					KmsKeyId:        "",
-				},
-			},
-			expectedMissingEncryption: true,
-			expectedMissingRetention:  false,
-		},
-		{
-			name: "missing only retention",
-			configItem: types.ConfigurationItem{
-				AwsRegion:    "ca-central-1",
-				AwsAccountId: "123456789012",
-				Configuration: types.LogGroupConfiguration{
-					LogGroupName:    "/aws/lambda/test",
-					RetentionInDays: nil,
-					KmsKeyId:        "arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-				},
-			},
-			expectedMissingEncryption: false,
-			expectedMissingRetention:  true,
-		},
-		{
-			name: "fully compliant",
-			configItem: types.ConfigurationItem{
-				AwsRegion:    "ca-central-1",
-				AwsAccountId: "123456789012",
-				Configuration: types.LogGroupConfiguration{
-					LogGroupName:    "/aws/lambda/test",
-					RetentionInDays: intPtr(365),
-					KmsKeyId:        "arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012",
-				},
-			},
-			expectedMissingEncryption: false,
-			expectedMissingRetention:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := handler.analyzeCompliance(tt.configItem)
-
-			if result.MissingEncryption != tt.expectedMissingEncryption {
-				t.Errorf("Expected MissingEncryption=%v, got %v", tt.expectedMissingEncryption, result.MissingEncryption)
-			}
-
-			if result.MissingRetention != tt.expectedMissingRetention {
-				t.Errorf("Expected MissingRetention=%v, got %v", tt.expectedMissingRetention, result.MissingRetention)
-			}
-
-			if result.LogGroupName != tt.configItem.Configuration.LogGroupName {
-				t.Errorf("Expected LogGroupName=%s, got %s", tt.configItem.Configuration.LogGroupName, result.LogGroupName)
-			}
-		})
-	}
-}
-
-// MockComplianceService is a mock implementation for testing
+// MockComplianceService provides a mock implementation for testing
 type MockComplianceService struct {
 	RemediateLogGroupCalled bool
 	RemediateLogGroupError  error
@@ -248,16 +162,6 @@ func (m *MockComplianceService) RemediateLogGroup(ctx context.Context, complianc
 	}, nil
 }
 
-func (m *MockComplianceService) ProcessNonCompliantResources(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error) {
-	// Mock implementation for batch processing
-	return &types.BatchRemediationResult{
-		TotalProcessed: len(request.NonCompliantResults),
-		SuccessCount:   len(request.NonCompliantResults),
-		FailureCount:   0,
-		Results:        []types.RemediationResult{},
-	}, nil
-}
-
 func (m *MockComplianceService) GetNonCompliantResources(ctx context.Context, configRuleName string, region string) ([]types.NonCompliantResource, error) {
 	// Mock implementation - return empty list for testing
 	return []types.NonCompliantResource{}, nil
@@ -266,6 +170,16 @@ func (m *MockComplianceService) GetNonCompliantResources(ctx context.Context, co
 func (m *MockComplianceService) ValidateResourceExistence(ctx context.Context, resources []types.NonCompliantResource) ([]types.NonCompliantResource, error) {
 	// Mock implementation - return all resources as valid
 	return resources, nil
+}
+
+func (m *MockComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error) {
+	// Mock implementation for optimized batch processing
+	return &types.BatchRemediationResult{
+		TotalProcessed: len(request.NonCompliantResults),
+		SuccessCount:   len(request.NonCompliantResults),
+		FailureCount:   0,
+		Results:        []types.RemediationResult{},
+	}, nil
 }
 
 // Helper function to create int32 pointer
