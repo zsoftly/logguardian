@@ -268,6 +268,16 @@ func (m *MockComplianceService) ValidateResourceExistence(ctx context.Context, r
 	return resources, nil
 }
 
+func (m *MockComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error) {
+	// Mock implementation for optimized batch processing
+	return &types.BatchRemediationResult{
+		TotalProcessed: len(request.NonCompliantResults),
+		SuccessCount:   len(request.NonCompliantResults),
+		FailureCount:   0,
+		Results:        []types.RemediationResult{},
+	}, nil
+}
+
 // Helper function to create int32 pointer
 func intPtr(i int32) *int32 {
 	return &i

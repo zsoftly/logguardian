@@ -178,13 +178,13 @@ func (h *ComplianceHandler) HandleConfigRuleEvaluationRequest(ctx context.Contex
 		BatchSize:           batchSize,
 	}
 
-	// Step 4: Process the batch
-	result, err := h.complianceService.ProcessNonCompliantResources(ctx, batchRequest)
+	// Step 4: Process the batch using optimized method with KMS validation caching
+	result, err := h.complianceService.ProcessNonCompliantResourcesOptimized(ctx, batchRequest)
 	if err != nil {
-		slog.Error("Batch processing failed",
+		slog.Error("Optimized batch processing failed",
 			"config_rule", configRuleName,
 			"error", err)
-		return fmt.Errorf("batch processing failed: %w", err)
+		return fmt.Errorf("optimized batch processing failed: %w", err)
 	}
 
 	slog.Info("Config rule evaluation processing completed",

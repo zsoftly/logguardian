@@ -13,6 +13,7 @@ import (
 type ComplianceServiceInterface interface {
 	RemediateLogGroup(ctx context.Context, compliance types.ComplianceResult) (*types.RemediationResult, error)
 	ProcessNonCompliantResources(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error)
+	ProcessNonCompliantResourcesOptimized(ctx context.Context, request types.BatchComplianceRequest) (*types.BatchRemediationResult, error)
 	GetNonCompliantResources(ctx context.Context, configRuleName string, region string) ([]types.NonCompliantResource, error)
 	ValidateResourceExistence(ctx context.Context, resources []types.NonCompliantResource) ([]types.NonCompliantResource, error)
 }
