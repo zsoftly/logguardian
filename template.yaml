@@ -20,7 +20,7 @@ Parameters:
     Type: String
     Default: prod
     Description: Deployment environment
-    AllowedValues: [dev, staging, prod]
+    AllowedValues: [dev, staging, prod, sandbox]
     
   KMSKeyAlias:
     Type: String
@@ -30,16 +30,42 @@ Parameters:
 
   DefaultRetentionDays:
     Type: Number
-    Default: 365
+    Default: 30
     MinValue: 1
     MaxValue: 3653
-    Description: Default retention period for log groups in days
+    Description: Default retention period for log groups in days (minimum 1 day for Config rules)
 
   ScheduleExpression:
     Type: String
-    Default: "rate(24 hours)"
-    Description: How often to run compliance checks
+    Default: "cron(0 2 ? * SAT *)"
+    Description: How often to run compliance checks - encryption runs Saturdays, retention runs Sundays (staggered)
     AllowedPattern: "^(rate\\(.*\\)|cron\\(.*\\))$"
+
+  EnableStaggeredScheduling:
+    Type: String
+    Default: "true"
+    Description: Enable staggered scheduling to avoid simultaneous execution
+    AllowedValues: ["true", "false"]
+
+  # S3 Lifecycle Configuration Parameters  
+  S3ExpirationDays:
+    Type: Number
+    Default: 14
+    MinValue: 1
+    MaxValue: 3653
+    Description: Days after which Config data is permanently deleted (default 14 days for testing, increase for compliance)
+
+  EnableS3LifecycleRules:
+    Type: String
+    Default: "true"
+    Description: Enable S3 lifecycle rules for cost optimization
+    AllowedValues: ["true", "false"]
+
+  CreateMonitoringDashboard:
+    Type: String
+    Default: "false"
+    Description: Create CloudWatch dashboard for monitoring (recommended for production only)
+    AllowedValues: ["true", "false"]
 
   LambdaMemorySize:
     Type: Number
@@ -54,6 +80,34 @@ Parameters:
     MinValue: 1
     MaxValue: 900
     Description: Lambda function timeout in seconds
+
+Conditions:
+  IsStaggeredScheduling: !Equals [!Ref EnableStaggeredScheduling, "true"]
+  IsS3LifecycleEnabled: !Equals [!Ref EnableS3LifecycleRules, "true"]
+  CreateDashboard: !Equals [!Ref CreateMonitoringDashboard, "true"]
+  IsProductionEnvironment: !Or
+    - !Equals [!Ref Environment, "prod"]
+    - !Equals [!Ref Environment, "production"]
+  IsDevelopmentEnvironment: !Or
+    - !Equals [!Ref Environment, "dev"]
+    - !Equals [!Ref Environment, "sandbox"]
+    - !Equals [!Ref Environment, "staging"]
+  IsHourlySchedule: !Or
+    - !Equals [!Ref ScheduleExpression, "rate(1 hour)"]
+    - !Equals [!Ref ScheduleExpression, "rate(2 hours)"]
+    - !Equals [!Ref ScheduleExpression, "rate(3 hours)"]
+    - !Equals [!Ref ScheduleExpression, "rate(4 hours)"]
+    - !Equals [!Ref ScheduleExpression, "rate(6 hours)"]
+    - !Equals [!Ref ScheduleExpression, "rate(8 hours)"]
+    - !Equals [!Ref ScheduleExpression, "rate(12 hours)"]
+  IsDailySchedule: !Or
+    - !Equals [!Ref ScheduleExpression, "rate(24 hours)"]
+    - !Equals [!Ref ScheduleExpression, "rate(1 day)"]
+    - !Equals [!Ref ScheduleExpression, "cron(0 0 * * ? *)"]
+  IsWeeklySchedule: !Or
+    - !Equals [!Ref ScheduleExpression, "rate(7 days)"]
+    - !Equals [!Ref ScheduleExpression, "cron(0 2 ? * SAT *)"]
+    - !Equals [!Ref ScheduleExpression, "cron(0 0 ? * MON *)"]
 
 Globals:
   Function:
@@ -155,7 +209,7 @@ Resources:
           Type: Schedule
           Properties:
             Name: !Sub "logguardian-encryption-schedule-${Environment}"
-            Description: "Scheduled trigger for LogGuardian encryption compliance checks"
+            Description: "Scheduled trigger for LogGuardian encryption compliance checks (runs first)"
             Schedule: !Ref ScheduleExpression
             Input: !Sub |
               {
@@ -170,8 +224,20 @@ Resources:
           Type: Schedule
           Properties:
             Name: !Sub "logguardian-retention-schedule-${Environment}"
-            Description: "Scheduled trigger for LogGuardian retention compliance checks"
-            Schedule: !Ref ScheduleExpression
+            Description: "Scheduled trigger for LogGuardian retention compliance checks (runs Sundays, staggered from encryption)"
+            Schedule: !If 
+              - IsStaggeredScheduling
+              - !If 
+                - IsHourlySchedule
+                - "cron(30 * * * ? *)"  # 30 minutes past every hour
+                - !If 
+                  - IsDailySchedule  
+                  - "cron(30 0 * * ? *)"  # 12:30 AM daily
+                  - !If
+                    - IsWeeklySchedule
+                    - "cron(0 2 ? * SUN *)"  # 2:00 AM Sundays (encryption runs Saturdays)
+                    - "cron(30 0 1 * ? *)"  # 12:30 AM first day of month
+              - !Ref ScheduleExpression
             Input: !Sub |
               {
                 "type": "config-rule-evaluation",
@@ -210,6 +276,17 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        !If
+          - IsS3LifecycleEnabled
+          - Rules:
+              - Id: ConfigDataExpiration
+                Status: Enabled
+                ExpirationInDays: !Ref S3ExpirationDays
+                NoncurrentVersionExpirationInDays: 7
+          - !Ref AWS::NoValue
+      VersioningConfiguration:
+        Status: !If [IsS3LifecycleEnabled, Enabled, Suspended]
 
   ConfigBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -294,9 +371,10 @@ Resources:
           - AWS::Logs::LogGroup
       MaximumExecutionFrequency: TwentyFour_Hours
 
-  # CloudWatch Dashboard
+  # CloudWatch Dashboard (Optional - Disabled by Default)
   ComplianceDashboard:
     Type: AWS::CloudWatch::Dashboard
+    Condition: CreateDashboard
     Properties:
       DashboardName: !Sub "LogGuardian-${Environment}"
       DashboardBody: !Sub |
@@ -355,7 +433,8 @@ Outputs:
       Name: !Sub "${AWS::StackName}-KMSKeyArn"
 
   DashboardURL:
-    Description: URL to the CloudWatch dashboard
+    Condition: CreateDashboard
+    Description: URL to the CloudWatch dashboard (only created if monitoring dashboard is enabled)
     Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=LogGuardian-${Environment}"
     Export:
       Name: !Sub "${AWS::StackName}-DashboardURL"
@@ -365,3 +444,15 @@ Outputs:
     Value: !Ref AWS::StackName
     Export:
       Name: !Sub "${AWS::StackName}-ApplicationId"
+
+  ConfigBucketName:
+    Description: Name of the S3 bucket storing AWS Config data
+    Value: !Ref ConfigBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-ConfigBucket"
+
+  S3LifecycleSettings:
+    Description: S3 lifecycle configuration for cost optimization
+    Value: !Sub "Delete after ${S3ExpirationDays} days (lifecycle rules ${EnableS3LifecycleRules})"
+    Export:
+      Name: !Sub "${AWS::StackName}-S3Lifecycle"
