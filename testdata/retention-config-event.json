@@ -1,0 +1,43 @@
+{
+  "type": "config-event",
+  "configEvent": {
+    "configRuleInvokingEvent": {
+      "configurationItem": {
+        "configurationItemVersion": "1.3",
+        "configurationItemCaptureTime": "2024-01-15T10:30:00.000Z",
+        "configurationStateId": 1642251000000,
+        "awsAccountId": "123456789012",
+        "configurationItemStatus": "ResourceDiscovered",
+        "resourceType": "AWS::Logs::LogGroup",
+        "resourceId": "/aws/apigateway/my-api",
+        "resourceName": "/aws/apigateway/my-api",
+        "awsRegion": "ca-central-1",
+        "availabilityZone": "ca-central-1a",
+        "configurationStateMd5Hash": "def789abc123",
+        "resourceCreationTime": "2024-01-15T09:00:00.000Z",
+        "configuration": {
+          "logGroupName": "/aws/apigateway/my-api",
+          "retentionInDays": 30,
+          "kmsKeyId": "",
+          "creationTime": 1642245600000,
+          "metricFilterCount": 0,
+          "dataProtectionStatus": "DISABLED",
+          "logGroupClass": "STANDARD"
+        }
+      },
+      "notificationCreationTime": "2024-01-15T10:30:00.000Z",
+      "messageType": "ConfigurationItemChangeNotification",
+      "recordVersion": "1.3"
+    },
+    "configRuleName": "logguardian-retention-dev",
+    "resultToken": "eyJlbmNyeXB0ZWREYXRhIjoiQUFBQUFIZHhaR0Z6ZEdGelpTQnlaV0V3",
+    "eventLeftScope": false,
+    "ruleParameters": {
+      "desiredRetentionInDays": "365",
+      "kmsKeyAliasPattern": "alias/logguardian-logs"
+    },
+    "accountId": "123456789012",
+    "configRuleArn": "arn:aws:config:ca-central-1:123456789012:config-rule/logguardian-retention-dev",
+    "executionRoleArn": "arn:aws:iam::123456789012:role/aws-config-role"
+  }
+}

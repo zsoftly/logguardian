@@ -55,90 +55,24 @@ test-coverage: test
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-# CloudFormation template validation
-.PHONY: validate-templates
-validate-templates:
-	@echo "Validating CloudFormation templates..."
-	@if command -v aws >/dev/null 2>&1; then \
-		cd templates && ./90-validate-templates.sh; \
-	else \
-		echo "AWS CLI not found. Skipping template validation."; \
-	fi
+# Deploy to development environment (deprecated - use SAM)
+.PHONY: deploy-dev-deprecated
+deploy-dev-deprecated:
+	@echo "⚠️  CloudFormation deployment is deprecated. Use SAM instead:"
+	@echo "   make sam-deploy-dev"
+	@echo ""
+	@echo "For more information, see: docs/sam-vs-cloudformation.md"
 
-# Deploy to development environment
-.PHONY: deploy-dev
-deploy-dev: package validate-templates
-	@echo "Deploying to development environment..."
-	@if [ -z "$(DEPLOYMENT_BUCKET)" ]; then \
-		echo "Error: DEPLOYMENT_BUCKET environment variable is required"; \
-		exit 1; \
-	fi
-	@if [ -z "$(AWS_REGION)" ]; then \
-		echo "Error: AWS_REGION environment variable is required"; \
-		exit 1; \
-	fi
-	aws s3 cp $(DIST_DIR)/$(FUNCTION_NAME).zip s3://$(DEPLOYMENT_BUCKET)/
-	aws cloudformation deploy \
-		--template-file templates/00-logguardian-simple.yaml \
-		--stack-name logguardian-dev-$(AWS_REGION) \
-		--parameter-overrides Environment=dev DeploymentBucket=$(DEPLOYMENT_BUCKET) \
-		--capabilities CAPABILITY_NAMED_IAM \
-		--region $(AWS_REGION)
-
-# Deploy to staging environment
-.PHONY: deploy-staging
-deploy-staging: package validate-templates
-	@echo "Deploying to staging environment..."
-	@if [ -z "$(DEPLOYMENT_BUCKET)" ]; then \
-		echo "Error: DEPLOYMENT_BUCKET environment variable is required"; \
-		exit 1; \
-	fi
-	@if [ -z "$(AWS_REGION)" ]; then \
-		echo "Error: AWS_REGION environment variable is required"; \
-		exit 1; \
-	fi
-	aws s3 cp $(DIST_DIR)/$(FUNCTION_NAME).zip s3://$(DEPLOYMENT_BUCKET)/
-	aws s3 sync templates/ s3://$(DEPLOYMENT_BUCKET)/templates/
-	aws cloudformation deploy \
-		--template-file templates/01-logguardian-main.yaml \
-		--stack-name logguardian-staging-$(AWS_REGION) \
-		--parameter-overrides Environment=staging DeploymentBucket=$(DEPLOYMENT_BUCKET) \
-		--capabilities CAPABILITY_NAMED_IAM \
-		--region $(AWS_REGION)
-
-# Deploy to production environment
-.PHONY: deploy-prod
-deploy-prod: package validate-templates
-	@echo "Deploying to production environment..."
-	@if [ -z "$(DEPLOYMENT_BUCKET)" ]; then \
-		echo "Error: DEPLOYMENT_BUCKET environment variable is required"; \
-		exit 1; \
-	fi
-	@if [ -z "$(AWS_REGION)" ]; then \
-		echo "Error: AWS_REGION environment variable is required"; \
-		exit 1; \
-	fi
-	@echo "WARNING: Deploying to production environment!"
-	@read -p "Are you sure you want to deploy to production? (y/N): " confirm && [ "$$confirm" = "y" ]
-	aws s3 cp $(DIST_DIR)/$(FUNCTION_NAME).zip s3://$(DEPLOYMENT_BUCKET)/
-	aws s3 sync templates/ s3://$(DEPLOYMENT_BUCKET)/templates/
-	aws cloudformation deploy \
-		--template-file templates/01-logguardian-main.yaml \
-		--stack-name logguardian-prod-$(AWS_REGION) \
-		--parameter-overrides Environment=prod DeploymentBucket=$(DEPLOYMENT_BUCKET) \
-		--capabilities CAPABILITY_NAMED_IAM \
-		--region $(AWS_REGION)
-
-# Upload templates to S3 for nested stack deployment
-.PHONY: upload-templates
-upload-templates:
-	@echo "Uploading CloudFormation templates to S3..."
-	@if [ -z "$(DEPLOYMENT_BUCKET)" ]; then \
-		echo "Error: DEPLOYMENT_BUCKET environment variable is required"; \
-		exit 1; \
-	fi
-	aws s3 sync templates/ s3://$(DEPLOYMENT_BUCKET)/templates/
-	@echo "Templates uploaded to s3://$(DEPLOYMENT_BUCKET)/templates/"
+# Legacy CloudFormation deployment targets (deprecated)
+# Use SAM deployment instead: make sam-deploy-dev, make sam-deploy-prod
+.PHONY: deploy-staging-deprecated deploy-prod-deprecated upload-templates-deprecated
+deploy-staging-deprecated deploy-prod-deprecated upload-templates-deprecated:
+	@echo "⚠️  CloudFormation deployment is deprecated. Use SAM instead:"
+	@echo "   Development: make sam-deploy-dev"
+	@echo "   Production:  make sam-deploy-prod"
+	@echo "   Marketplace: make sam-package-marketplace"
+	@echo ""
+	@echo "For more information, see: docs/sam-vs-cloudformation.md"
 .PHONY: test-coverage
 test-coverage: test
 	@echo "Generating coverage report..."
@@ -217,9 +151,11 @@ help:
 	@echo "LogGuardian Go Lambda Function - Available Make Targets"
 	@echo "======================================================"
 	@echo ""
+	@echo "🚀 Primary Deployment Method: AWS SAM (for AWS Marketplace)"
+	@echo ""
 	@echo "Build Targets:"
 	@echo "  build           - Build the Lambda function binary"
-	@echo "  package         - Create deployment ZIP package"
+	@echo "  package         - Create deployment ZIP package (legacy)"
 	@echo "  clean           - Clean build artifacts"
 	@echo ""
 	@echo "Testing Targets:"
@@ -233,15 +169,6 @@ help:
 	@echo "  security        - Run security scan with gosec"
 	@echo "  vuln-check      - Check for vulnerabilities"
 	@echo "  check           - Run all quality checks"
-	@echo ""
-	@echo "CloudFormation Targets:"
-	@echo "  validate-templates - Validate CloudFormation templates"
-	@echo "  upload-templates   - Upload templates to S3"
-	@echo ""
-	@echo "Deployment Targets:"
-	@echo "  deploy-dev      - Deploy to development environment"
-	@echo "  deploy-staging  - Deploy to staging environment"
-	@echo "  deploy-prod     - Deploy to production environment"
 	@echo ""
 	@echo "Utility Targets:"
 	@echo "  deps            - Download dependencies"
@@ -317,6 +244,9 @@ install-tools:
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 	go install github.com/golang/mock/mockgen@latest
 
+# Include SAM-specific targets
+include sam.mk
+
 # Show help
 .PHONY: help
 help:
@@ -337,4 +267,30 @@ help:
 	@echo "  deps          - Download dependencies"
 	@echo "  size          - Show binary and package size"
 	@echo "  install-tools - Install development tools"
-	@echo "  help          - Show this help message"
+	@echo ""
+	@echo "SAM Targets (AWS Marketplace Deployment):"
+	@echo "  sam-build              - Build for SAM deployment"
+	@echo "  sam-validate           - Validate SAM template"
+	@echo "  sam-local-start        - Start SAM local API"
+	@echo ""
+	@echo "SAM Testing Targets:"
+	@echo "  sam-test-all-events    - Test all event types comprehensively"
+	@echo "  sam-test-quick         - Quick test of common scenarios"
+	@echo "  sam-test-encryption    - Test encryption scenarios"
+	@echo "  sam-test-retention     - Test retention scenarios"
+	@echo "  sam-test-errors        - Test error handling"
+	@echo ""
+	@echo "Individual Test Targets:"
+	@echo "  sam-local-invoke       - Test config-rule-evaluation event"
+	@echo "  sam-local-invoke-config - Test individual config event"
+	@echo "  sam-local-invoke-retention - Test retention rule evaluation"
+	@echo "  sam-local-invoke-compliant - Test compliant log group"
+	@echo "  sam-local-invoke-invalid   - Test invalid event type"
+	@echo ""
+	@echo "SAM Deployment Targets:"
+	@echo "  sam-deploy-dev         - Deploy to dev with SAM"
+	@echo "  sam-deploy-prod        - Deploy to prod with SAM"
+	@echo "  sam-package-marketplace - Package for AWS Marketplace"
+	@echo "  sam-publish            - Publish to AWS SAR"
+	@echo "  sam-marketplace-ready  - Complete marketplace workflow"
+	@echo "  help                   - Show this help message"

@@ -1,0 +1,6 @@
+{
+  "type": "invalid-type-test",
+  "invalidData": {
+    "someField": "someValue"
+  }
+}
