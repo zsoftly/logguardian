@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	logguardiantypes "github.com/zsoftly/logguardian/internal/types"
 )
 
@@ -321,17 +323,14 @@ func TestNewComplianceService(t *testing.T) {
 
 	service := NewComplianceService(cfg)
 
-	if service == nil {
-		t.Fatal("Expected service to be created, got nil")
-	}
+	// Test that service is properly initialized (NewComplianceService never returns nil)
+	require.NotNil(t, service, "Expected service to be created, got nil")
+	require.NotNil(t, service.logsClient, "Expected logs client to be initialized")
+	require.NotNil(t, service.kmsClient, "Expected KMS client to be initialized")
 
-	if service.config.DefaultKMSKeyAlias == "" {
-		t.Error("Expected default KMS key alias to be set")
-	}
-
-	if service.config.DefaultRetentionDays == 0 {
-		t.Error("Expected default retention days to be set")
-	}
+	// Test configuration values
+	assert.NotEmpty(t, service.config.DefaultKMSKeyAlias, "Expected default KMS key alias to be set")
+	assert.NotZero(t, service.config.DefaultRetentionDays, "Expected default retention days to be set")
 }
 
 func TestEnvironmentVariableHandling(t *testing.T) {

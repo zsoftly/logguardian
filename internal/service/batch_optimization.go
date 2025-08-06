@@ -12,6 +12,19 @@ import (
 	"github.com/zsoftly/logguardian/internal/types"
 )
 
+// Batch processing constants
+const (
+	// DefaultBatchSize is the default number of resources to process in parallel
+	DefaultBatchSize = 10
+)
+
+// Batch error message templates for consistent and descriptive error reporting
+const (
+	BatchKMSValidationFailedTemplate = "failed to validate KMS key '%s' for batch operation in region '%s' (config rule: %s): %w"
+	BatchContextInitFailedTemplate   = "failed to initialize batch remediation context for config rule '%s' in region '%s': %w"
+	KMSKeyNotValidatedTemplate       = "KMS key '%s' not validated for batch operation in region '%s' (config rule: %s): %w"
+)
+
 // BatchKMSValidationCache caches KMS key validation results for a batch operation
 type BatchKMSValidationCache struct {
 	keyInfo         *KMSKeyInfo
@@ -60,7 +73,7 @@ func (s *ComplianceService) NewBatchRemediationContext(ctx context.Context, requ
 			"kms_key_alias", s.config.DefaultKMSKeyAlias,
 			"error", err,
 			"audit_action", "batch_kms_validation_failed")
-		return nil, fmt.Errorf("batch KMS validation failed: %w", err)
+		return nil, fmt.Errorf(BatchKMSValidationFailedTemplate, s.config.DefaultKMSKeyAlias, request.Region, request.ConfigRuleName, err)
 	}
 
 	slog.Info("Batch remediation context initialized successfully",
@@ -144,7 +157,8 @@ func (bctx *BatchRemediationContext) GetValidatedKMSKeyInfo() (*KMSKeyInfo, erro
 	}
 
 	if bctx.kmsCache.keyInfo == nil {
-		return nil, fmt.Errorf("KMS key not validated for batch operation")
+		validationErr := fmt.Errorf("KMS key validation was not performed or failed")
+		return nil, fmt.Errorf(KMSKeyNotValidatedTemplate, bctx.kmsCache.keyAlias, bctx.region, bctx.configRuleName, validationErr)
 	}
 
 	return bctx.kmsCache.keyInfo, nil
@@ -164,7 +178,7 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 	// Initialize batch context with one-time KMS validation
 	batchCtx, err := s.NewBatchRemediationContext(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize batch context: %w", err)
+		return nil, fmt.Errorf(BatchContextInitFailedTemplate, request.ConfigRuleName, request.Region, err)
 	}
 
 	result := &types.BatchRemediationResult{
@@ -175,7 +189,7 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 	// Process resources in batches to avoid overwhelming the AWS APIs
 	batchSize := request.BatchSize
 	if batchSize <= 0 {
-		batchSize = 10 // Default batch size
+		batchSize = DefaultBatchSize
 	}
 
 	var mu sync.Mutex
@@ -245,8 +259,8 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 				result.Results = append(result.Results, *remediationResult)
 				mu.Unlock()
 
-				// Small delay between resources in the same batch to prevent overwhelming APIs
-				time.Sleep(50 * time.Millisecond) // Reduced from 100ms since KMS validation is cached
+				// Configurable delay between resources in the same batch to prevent overwhelming APIs
+				time.Sleep(s.config.BatchResourceDelay)
 			}
 
 			slog.Info("Optimized batch completed",
@@ -255,8 +269,8 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 
 		}(batch, i/batchSize)
 
-		// Rate limiting: delay between batches (reduced since KMS validation is cached)
-		time.Sleep(200 * time.Millisecond) // Reduced from 500ms
+		// Rate limiting: configurable delay between batches
+		time.Sleep(s.config.BatchGroupDelay)
 	}
 
 	// Wait for all batches to complete
@@ -272,6 +286,8 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 		"processing_duration", result.ProcessingDuration,
 		"rate_limit_hits", rateLimitCounter,
 		"kms_validation_cached", true,
+		"batch_resource_delay_ms", s.config.BatchResourceDelay.Milliseconds(),
+		"batch_group_delay_ms", s.config.BatchGroupDelay.Milliseconds(),
 		"performance_improvement", "eliminated_repeated_kms_validation",
 		"audit_action", "batch_remediation_complete")
 

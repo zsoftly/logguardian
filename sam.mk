@@ -1,7 +1,7 @@
 # Build for SAM deployment
 .PHONY: sam-build
 sam-build: build
-	@echo "Preparing SAM build..."
+	@echo "Preparing SAM build directory..."
 	mkdir -p .aws-sam/build/LogGuardianFunction
 	cp $(BUILD_DIR)/$(BINARY_NAME) .aws-sam/build/LogGuardianFunction/
 	@echo "SAM build ready"

@@ -78,6 +78,8 @@ type ServiceConfig struct {
 	Region               string
 	MaxKMSRetries        int32
 	RetryBaseDelay       time.Duration
+	BatchResourceDelay   time.Duration
+	BatchGroupDelay      time.Duration
 }
 
 // NewComplianceService creates a new compliance service
@@ -95,6 +97,8 @@ func NewComplianceService(cfg aws.Config) *ComplianceService {
 		Region:               region,
 		MaxKMSRetries:        getEnvAsInt32OrDefault("MAX_KMS_RETRIES", 3),
 		RetryBaseDelay:       time.Duration(getEnvAsInt32OrDefault("RETRY_BASE_DELAY_MS", 1000)) * time.Millisecond,
+		BatchResourceDelay:   time.Duration(getEnvAsInt32OrDefault("BATCH_RESOURCE_DELAY_MS", 50)) * time.Millisecond,
+		BatchGroupDelay:      time.Duration(getEnvAsInt32OrDefault("BATCH_GROUP_DELAY_MS", 200)) * time.Millisecond,
 	}
 
 	return &ComplianceService{
