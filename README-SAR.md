@@ -57,10 +57,23 @@ aws cloudformation deploy \
 - [Report Issues](https://github.com/zsoftly/logguardian/issues)
 - [Discussions](https://github.com/zsoftly/logguardian/discussions)
 
+## Professional Services
+
+Need help with enterprise deployment? **ZSoftly Technologies Inc** provides professional AWS consulting services.
+
+**🌐 [ZSoftly Cloud Services](https://cloud.zsoftly.com/)**
+
+**📞 Contact Information:**
+- **Phone:** +1 (343) 503-0513
+- **Email:** info@zsoftly.com
+- **Address:** 116 Albert Street, Suite 300, Ottawa, Ontario K1P 5G3
+- **Business Hours:** Mon–Fri: 6 AM–10 PM EST
+- **[Book Online Consultation](https://cloud.zsoftly.com/)**
+
 ## License
 
 MIT License - see the [LICENSE](https://github.com/zsoftly/logguardian/blob/main/LICENSE) file for details.
 
 ---
 
-**Built by ZSoftly Technologies Inc | Made in Canada**
+**Built by [ZSoftly Technologies Inc](https://zsoftly.com) | Made in Canada | [Professional Services](https://cloud.zsoftly.com/)**
