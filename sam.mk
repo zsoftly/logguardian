@@ -165,25 +165,77 @@ sam-validate:
 # SAM deploy for development
 .PHONY: sam-deploy-dev
 sam-deploy-dev: sam-build sam-validate
-	@echo "Deploying with SAM (development)..."
+	@echo "Deploying development environment..."
 	sam deploy \
 		--template-file template.yaml \
 		--stack-name logguardian-dev \
-		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-		--parameter-overrides Environment=dev \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--parameter-overrides \
+			Environment=dev \
+			CreateKMSKey=true \
+			CreateConfigService=true \
+			CreateConfigRules=true \
+			CreateEventBridgeRules=true \
+			CreateMonitoringDashboard=false \
+			DefaultRetentionDays=7 \
+			LambdaMemorySize=256 \
+			S3ExpirationDays=3 \
+			ProductName=LogGuardian-Dev \
+			Owner=DevOps-Team \
 		--resolve-s3
 
 # SAM deploy for production
 .PHONY: sam-deploy-prod
 sam-deploy-prod: sam-build sam-validate
-	@echo "Deploying with SAM (production)..."
+	@echo "Deploying production environment..."
 	@echo "WARNING: Deploying to production environment!"
 	@read -p "Are you sure you want to deploy to production? (y/N): " confirm && [ "$$confirm" = "y" ]
 	sam deploy \
 		--template-file template.yaml \
 		--stack-name logguardian-prod \
-		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-		--parameter-overrides Environment=prod \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--parameter-overrides \
+			Environment=prod \
+			CreateKMSKey=true \
+			CreateConfigService=true \
+			CreateConfigRules=true \
+			CreateEventBridgeRules=true \
+			CreateMonitoringDashboard=true \
+			DefaultRetentionDays=365 \
+			LambdaMemorySize=512 \
+			S3ExpirationDays=90 \
+			EnableStaggeredScheduling=true \
+			ProductName=LogGuardian \
+			Owner=Platform-Team \
+		--resolve-s3
+
+# SAM deploy enterprise scenario (using existing infrastructure)
+.PHONY: sam-deploy-enterprise
+sam-deploy-enterprise: sam-build sam-validate
+	@echo "Deploying enterprise scenario (using existing infrastructure)..."
+	@echo "NOTE: Update the parameter values with your actual existing resource ARNs"
+	sam deploy \
+		--template-file template.yaml \
+		--stack-name logguardian-enterprise \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--parameter-overrides \
+			Environment=prod \
+			CreateKMSKey=false \
+			ExistingKMSKeyArn=arn:aws:kms:ca-central-1:ACCOUNT:key/KEY-ID \
+			CreateConfigService=false \
+			ExistingConfigBucket=enterprise-config-bucket \
+			ExistingConfigServiceRoleArn=arn:aws:iam::ACCOUNT:role/ConfigRole \
+			CreateConfigRules=false \
+			ExistingEncryptionConfigRule=enterprise-encryption-rule \
+			ExistingRetentionConfigRule=enterprise-retention-rule \
+			CreateEventBridgeRules=false \
+			CreateMonitoringDashboard=false \
+			CustomerTagPrefix=Enterprise-LogGuardian \
+			Owner=Enterprise-Security \
+		--resolve-s3 \
+			CreateMonitoringDashboard=false \
+			CustomerTagPrefix=Enterprise-LogGuardian \
+			Owner=Enterprise-Security \
 		--resolve-s3
 
 # SAM package for AWS Marketplace

@@ -126,7 +126,7 @@ Environment:
 
 ```bash
 # Customer has existing KMS keys per region and wants to use them
-./scripts/logguardian-deploy.sh deploy-customer \
+./scripts/logguardian-deploy.sh deploy \
   -e prod \
   -r ca-central-1 \
   --existing-kms-key alias/enterprise-logs-ca \
@@ -142,7 +142,7 @@ Environment:
 
 ```bash
 # US regions - SOX compliance with specific owner
-./scripts/logguardian-deploy.sh deploy-customer \
+./scripts/logguardian-deploy.sh deploy \
   -e compliance \
   -r us-east-1 \
   --existing-kms-key alias/sox-compliance-logs \
@@ -151,7 +151,7 @@ Environment:
   --retention-days 2555
 
 # EU regions - GDPR compliance with different owner
-./scripts/logguardian-deploy.sh deploy-customer \
+./scripts/logguardian-deploy.sh deploy \
   -e compliance \
   -r eu-west-1 \
   --existing-kms-key alias/gdpr-compliance-logs \

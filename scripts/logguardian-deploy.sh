@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# LogGuardian Multi-Region Deployment Script
-# Provides functions for deploying and managing LogGuardian across multiple regions
-# Usage: source this script or run individual functions
+# LogGuardian Production Deployment Script
+# Optimized for single-region deployment with optional infrastructure support
+# Usage: ./logguardian-deploy.sh [OPTIONS]
 
 set -e
 
@@ -12,12 +12,12 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEMPLATE_FILE="$PROJECT_ROOT/template.yaml"
 
 # Default values
-DEFAULT_ENVIRONMENT="sandbox"
-DEFAULT_REGIONS=("ca-central-1" "ca-west-1")
-DEFAULT_S3_EXPIRATION_DAYS=14
-DEFAULT_LAMBDA_MEMORY=256
+DEFAULT_ENVIRONMENT="prod"
+DEFAULT_REGION="ca-central-1"
+DEFAULT_S3_EXPIRATION_DAYS=90
+DEFAULT_LAMBDA_MEMORY=512
 DEFAULT_LAMBDA_TIMEOUT=900
-DEFAULT_RETENTION_DAYS=30
+DEFAULT_RETENTION_DAYS=365
 
 # Colors for output
 RED='\033[0;31m'
@@ -45,103 +45,119 @@ log_error() {
 
 # Usage function
 show_usage() {
-    cat << EOF
-LogGuardian Multi-Region Deployment Script
+    cat << USAGE_EOF
+LogGuardian Production Deployment Script
 
 USAGE:
-    $0 COMMAND [OPTIONS]
+    $0 [OPTIONS]
 
 COMMANDS:
-    deploy-single       Deploy to a single region
-    deploy-multi        Deploy to multiple regions
-    deploy-dev          Deploy development environment
-    deploy-staging      Deploy staging environment  
-    deploy-prod         Deploy production environment
-    deploy-customer     Deploy with customer infrastructure options
-    status              Show deployment status across regions
-    cleanup             Clean up deployments
+    deploy              Deploy LogGuardian (default)
+    status              Show deployment status
+    cleanup             Clean up deployment
     validate            Validate template before deployment
     help                Show this help message
 
-GLOBAL OPTIONS:
-    -e, --environment ENV       Environment (dev/staging/prod/sandbox) [default: $DEFAULT_ENVIRONMENT]
-    -r, --regions REGIONS       Comma-separated regions [default: ${DEFAULT_REGIONS[*]}]
+OPTIONS:
+    -e, --environment ENV       Environment name [default: $DEFAULT_ENVIRONMENT]
+    -r, --region REGION         AWS region [default: $DEFAULT_REGION]
+    -s, --stack-name NAME       Stack name [default: logguardian-ENV-REGION]
     -t, --template FILE         Template file path [default: $TEMPLATE_FILE]
-    -s, --stack-prefix PREFIX   Stack name prefix [default: logguardian]
     -v, --verbose               Verbose output
     -h, --help                  Show help
 
-DEPLOYMENT OPTIONS:
-    --retention-days DAYS       Log retention in days [default: $DEFAULT_RETENTION_DAYS]
-    --s3-expiration-days DAYS   S3 data expiration days [default: $DEFAULT_S3_EXPIRATION_DAYS]
-    --lambda-memory MB          Lambda memory size [default: $DEFAULT_LAMBDA_MEMORY]
-    --lambda-timeout SEC        Lambda timeout [default: $DEFAULT_LAMBDA_TIMEOUT]
-    --create-dashboard BOOL     Create CloudWatch dashboard [default: true]
-    --enable-staggered BOOL     Enable staggered scheduling [default: true]
+INFRASTRUCTURE OPTIONS:
+    --create-kms-key BOOL           Create new KMS key [default: true]
+    --existing-kms-key-arn ARN      Use existing KMS key ARN
+    --create-config-service BOOL    Create AWS Config service [default: true]
+    --existing-config-bucket NAME   Use existing Config bucket
+    --existing-config-role-arn ARN  Use existing Config service role ARN
+    --create-config-rules BOOL      Create Config rules [default: true]
+    --existing-encryption-rule NAME Use existing encryption rule
+    --existing-retention-rule NAME  Use existing retention rule
+    --create-eventbridge BOOL      Create EventBridge rules [default: true]
+    --create-dashboard BOOL         Create CloudWatch dashboard [default: true]
 
-CUSTOMER INTEGRATION:
-    --existing-kms-key ALIAS    Use existing KMS key alias
-    --customer-tag-prefix NAME  Customer resource tag prefix
+CONFIGURATION OPTIONS:
+    --retention-days DAYS           Log retention in days [default: $DEFAULT_RETENTION_DAYS]
+    --s3-expiration-days DAYS       S3 data expiration days [default: $DEFAULT_S3_EXPIRATION_DAYS]
+    --lambda-memory MB              Lambda memory size [default: $DEFAULT_LAMBDA_MEMORY]
+    --lambda-timeout SEC            Lambda timeout [default: $DEFAULT_LAMBDA_TIMEOUT]
+    --enable-staggered BOOL         Enable staggered scheduling [default: true]
 
-RESOURCE TAGGING:
-    --product-name NAME         Product name for tagging [default: LogGuardian]
-    --owner NAME                Owner/Team name [default: ZSoftly]
-    --managed-by TOOL           Management tool [default: SAM]
+TAGGING OPTIONS:
+    --product-name NAME             Product name for tagging [default: LogGuardian]
+    --customer-tag-prefix NAME      Customer resource tag prefix
+    --owner NAME                    Owner/Team name [default: ZSoftly]
+    --managed-by TOOL               Management tool [default: SAM]
 
 EXAMPLES:
-    # Deploy to sandbox in two regions
-    $0 deploy-multi -e sandbox -r ca-central-1,ca-west-1
+    # Basic deployment to production
+    $0 deploy -e prod -r ca-central-1
 
-    # Deploy production with custom settings and tagging
-    $0 deploy-prod -r us-east-1,eu-west-1 --retention-days 2555 --owner "Platform-Team"
+    # Enterprise deployment with existing infrastructure
+    $0 deploy -e prod -r us-east-1 \\
+      --create-kms-key false \\
+      --existing-kms-key-arn arn:aws:kms:us-east-1:ACCOUNT:key/KEY-ID \\
+      --create-config-service false \\
+      --existing-config-bucket enterprise-config \\
+      --existing-config-role-arn arn:aws:iam::ACCOUNT:role/ConfigRole \\
+      --customer-tag-prefix "Enterprise-LogGuardian" \\
+      --owner "Enterprise-Security"
 
-    # Deploy with customer's existing KMS key and custom tags
-    $0 deploy-customer -e prod -r ca-central-1 \
-      --existing-kms-key alias/customer-logs \
-      --customer-tag-prefix "ACME-LogGuardian" \
-      --owner "ACME-SecurityTeam"
+    # Development deployment with minimal infrastructure
+    $0 deploy -e dev -r ca-central-1 \\
+      --retention-days 7 \\
+      --s3-expiration-days 3 \\
+      --lambda-memory 256 \\
+      --create-dashboard false
 
     # Check deployment status
-    $0 status -e prod
+    $0 status -e prod -r ca-central-1
 
-    # Clean up sandbox deployments
-    $0 cleanup -e sandbox
+    # Clean up deployment
+    $0 cleanup -e dev -r ca-central-1
 
-EOF
+USAGE_EOF
 }
 
 # Parse command line arguments
 parse_args() {
-    COMMAND=""
+    COMMAND="deploy"
     ENVIRONMENT="$DEFAULT_ENVIRONMENT"
-    REGIONS_STRING=""
+    REGION="$DEFAULT_REGION"
+    STACK_NAME=""
     TEMPLATE="$TEMPLATE_FILE"
-    STACK_PREFIX="logguardian"
     VERBOSE=false
     
-    # Deployment parameters
+    # Infrastructure parameters
+    CREATE_KMS_KEY="true"
+    EXISTING_KMS_KEY_ARN=""
+    CREATE_CONFIG_SERVICE="true"
+    EXISTING_CONFIG_BUCKET=""
+    EXISTING_CONFIG_SERVICE_ROLE_ARN=""
+    CREATE_CONFIG_RULES="true"
+    EXISTING_ENCRYPTION_CONFIG_RULE=""
+    EXISTING_RETENTION_CONFIG_RULE=""
+    CREATE_EVENTBRIDGE_RULES="true"
+    CREATE_MONITORING_DASHBOARD="true"
+    
+    # Configuration parameters
     S3_EXPIRATION_DAYS="$DEFAULT_S3_EXPIRATION_DAYS"
     LAMBDA_MEMORY="$DEFAULT_LAMBDA_MEMORY"
     LAMBDA_TIMEOUT="$DEFAULT_LAMBDA_TIMEOUT"
-    RETENTION_DAYS="$DEFAULT_RETENTION_DAYS"
-    CREATE_DASHBOARD="true"
-    ENABLE_STAGGERED="true"
+    DEFAULT_RETENTION_DAYS_VAL="$DEFAULT_RETENTION_DAYS"
+    ENABLE_STAGGERED_SCHEDULING="true"
     
-    # Customer infrastructure parameters
-    EXISTING_KMS_KEY=""
-    CREATE_KMS_KEY="true"
-    EXISTING_CONFIG_RULE=""
-    CREATE_CONFIG_RULES="true"
-    CUSTOMER_TAG_PREFIX=""
-    
-    # Resource tagging parameters
+    # Tagging parameters
     PRODUCT_NAME="LogGuardian"
+    CUSTOMER_TAG_PREFIX=""
     OWNER="ZSoftly"
     MANAGED_BY="SAM"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
-            deploy-single|deploy-multi|deploy-dev|deploy-staging|deploy-prod|deploy-customer|status|cleanup|validate|help)
+            deploy|status|cleanup|validate|help)
                 COMMAND="$1"
                 shift
                 ;;
@@ -149,16 +165,61 @@ parse_args() {
                 ENVIRONMENT="$2"
                 shift 2
                 ;;
-            -r|--regions)
-                REGIONS_STRING="$2"
+            -r|--region)
+                REGION="$2"
+                shift 2
+                ;;
+            -s|--stack-name)
+                STACK_NAME="$2"
                 shift 2
                 ;;
             -t|--template)
                 TEMPLATE="$2"
                 shift 2
                 ;;
-            -s|--stack-prefix)
-                STACK_PREFIX="$2"
+            --create-kms-key)
+                CREATE_KMS_KEY="$2"
+                shift 2
+                ;;
+            --existing-kms-key-arn)
+                EXISTING_KMS_KEY_ARN="$2"
+                CREATE_KMS_KEY="false"
+                shift 2
+                ;;
+            --create-config-service)
+                CREATE_CONFIG_SERVICE="$2"
+                shift 2
+                ;;
+            --existing-config-bucket)
+                EXISTING_CONFIG_BUCKET="$2"
+                shift 2
+                ;;
+            --existing-config-role-arn)
+                EXISTING_CONFIG_SERVICE_ROLE_ARN="$2"
+                shift 2
+                ;;
+            --create-config-rules)
+                CREATE_CONFIG_RULES="$2"
+                shift 2
+                ;;
+            --existing-encryption-rule)
+                EXISTING_ENCRYPTION_CONFIG_RULE="$2"
+                shift 2
+                ;;
+            --existing-retention-rule)
+                EXISTING_RETENTION_CONFIG_RULE="$2"
+                shift 2
+                ;;
+            --create-eventbridge)
+                CREATE_EVENTBRIDGE_RULES="$2"
+                shift 2
+                ;;
+            --create-dashboard)
+                CREATE_MONITORING_DASHBOARD="$2"
+                shift 2
+                ;;
+            --retention-days)
+                DEFAULT_RETENTION_DAYS_VAL="$2"
                 shift 2
                 ;;
             --s3-expiration-days)
@@ -173,34 +234,16 @@ parse_args() {
                 LAMBDA_TIMEOUT="$2"
                 shift 2
                 ;;
-            --retention-days)
-                RETENTION_DAYS="$2"
-                shift 2
-                ;;
-            --create-dashboard)
-                CREATE_DASHBOARD="$2"
-                shift 2
-                ;;
             --enable-staggered)
-                ENABLE_STAGGERED="$2"
-                shift 2
-                ;;
-            --existing-kms-key)
-                EXISTING_KMS_KEY="$2"
-                CREATE_KMS_KEY="false"
-                shift 2
-                ;;
-            --existing-config-rule)
-                EXISTING_CONFIG_RULE="$2"
-                CREATE_CONFIG_RULES="false"
-                shift 2
-                ;;
-            --customer-tag-prefix)
-                CUSTOMER_TAG_PREFIX="$2"
+                ENABLE_STAGGERED_SCHEDULING="$2"
                 shift 2
                 ;;
             --product-name)
                 PRODUCT_NAME="$2"
+                shift 2
+                ;;
+            --customer-tag-prefix)
+                CUSTOMER_TAG_PREFIX="$2"
                 shift 2
                 ;;
             --owner)
@@ -227,11 +270,9 @@ parse_args() {
         esac
     done
 
-    # Set regions array
-    if [ -n "$REGIONS_STRING" ]; then
-        IFS=',' read -ra REGIONS <<< "$REGIONS_STRING"
-    else
-        REGIONS=("${DEFAULT_REGIONS[@]}")
+    # Set default stack name if not provided
+    if [ -z "$STACK_NAME" ]; then
+        STACK_NAME="logguardian-$ENVIRONMENT-$REGION"
     fi
 
     # Validate command
@@ -267,23 +308,50 @@ validate_template() {
         exit 1
     fi
     
-    sam validate --template "$template_file" --region "${REGIONS[0]}"
+    sam validate --template "$template_file" --region "$REGION"
     log_success "Template validation passed"
 }
 
-# Build parameter overrides
+# Build parameter overrides for optimized template
 build_parameter_overrides() {
     local params="Environment=$ENVIRONMENT"
+    
+    # Infrastructure parameters
+    params="$params CreateKMSKey=$CREATE_KMS_KEY"
+    if [ -n "$EXISTING_KMS_KEY_ARN" ]; then
+        params="$params ExistingKMSKeyArn=$EXISTING_KMS_KEY_ARN"
+    fi
+    
+    params="$params CreateConfigService=$CREATE_CONFIG_SERVICE"
+    if [ -n "$EXISTING_CONFIG_BUCKET" ]; then
+        params="$params ExistingConfigBucket=$EXISTING_CONFIG_BUCKET"
+    fi
+    if [ -n "$EXISTING_CONFIG_SERVICE_ROLE_ARN" ]; then
+        params="$params ExistingConfigServiceRoleArn=$EXISTING_CONFIG_SERVICE_ROLE_ARN"
+    fi
+    
+    params="$params CreateConfigRules=$CREATE_CONFIG_RULES"
+    if [ -n "$EXISTING_ENCRYPTION_CONFIG_RULE" ]; then
+        params="$params ExistingEncryptionConfigRule=$EXISTING_ENCRYPTION_CONFIG_RULE"
+    fi
+    if [ -n "$EXISTING_RETENTION_CONFIG_RULE" ]; then
+        params="$params ExistingRetentionConfigRule=$EXISTING_RETENTION_CONFIG_RULE"
+    fi
+    
+    params="$params CreateEventBridgeRules=$CREATE_EVENTBRIDGE_RULES"
+    params="$params CreateMonitoringDashboard=$CREATE_MONITORING_DASHBOARD"
+    
+    # Configuration parameters
     params="$params S3ExpirationDays=$S3_EXPIRATION_DAYS"
-    params="$params CreateMonitoringDashboard=$CREATE_DASHBOARD"
-    params="$params EnableStaggeredScheduling=$ENABLE_STAGGERED"
-    params="$params DefaultRetentionDays=$RETENTION_DAYS"
     params="$params LambdaMemorySize=$LAMBDA_MEMORY"
     params="$params LambdaTimeout=$LAMBDA_TIMEOUT"
+    params="$params DefaultRetentionDays=$DEFAULT_RETENTION_DAYS_VAL"
+    params="$params EnableStaggeredScheduling=$ENABLE_STAGGERED_SCHEDULING"
     
-    # Add resource tagging parameters
+    # Tagging parameters
     local product_name="$PRODUCT_NAME"
     if [ -n "$CUSTOMER_TAG_PREFIX" ]; then
+        params="$params CustomerTagPrefix=$CUSTOMER_TAG_PREFIX"
         product_name="$CUSTOMER_TAG_PREFIX"
     fi
     
@@ -291,30 +359,21 @@ build_parameter_overrides() {
     params="$params Owner=$OWNER"
     params="$params ManagedBy=$MANAGED_BY"
     
-    # Add KMS key parameters if specified
-    if [ -n "$EXISTING_KMS_KEY" ]; then
-        params="$params KMSKeyAlias=$EXISTING_KMS_KEY"
-    fi
-    
     echo "$params"
 }
 
-# Deploy to a single region
-deploy_to_region() {
-    local region="$1"
-    local stack_name="$2"
-    local confirm_changeset="${3:-true}"
+# Deploy LogGuardian
+deploy() {
+    log_info "Starting LogGuardian deployment"
+    log_info "Environment: $ENVIRONMENT"
+    log_info "Region: $REGION"
+    log_info "Stack name: $STACK_NAME"
     
-    log_info "Deploying to region: $region"
-    log_info "Stack name: $stack_name"
+    build_lambda
+    validate_template
     
     local parameter_overrides=$(build_parameter_overrides)
-    local confirm_flag=""
     local stack_tags=""
-    
-    if [ "$confirm_changeset" = "false" ]; then
-        confirm_flag="--no-confirm-changeset"
-    fi
     
     # Build stack-level tags following AWS best practices
     local product_name="$PRODUCT_NAME"
@@ -322,163 +381,70 @@ deploy_to_region() {
         product_name="$CUSTOMER_TAG_PREFIX"
     fi
     
-    # AWS tagging best practices: Product, Owner, Environment, ManagedBy, Application, Version, CreatedBy
-    stack_tags="Product=$product_name Owner=$OWNER Environment=$ENVIRONMENT ManagedBy=$MANAGED_BY Application=LogGuardian Version=0.1.0-beta.2 CreatedBy=SAM-Deploy"
+    stack_tags="Product=$product_name Owner=$OWNER Environment=$ENVIRONMENT ManagedBy=$MANAGED_BY Application=LogGuardian Version=1.0.0 CreatedBy=SAM-Deploy"
     
     if [ "$VERBOSE" = "true" ]; then
         log_info "Parameter overrides: $parameter_overrides"
         log_info "Stack tags: $stack_tags"
     fi
     
+    log_info "Deploying to AWS..."
     sam deploy \
         --template-file "$TEMPLATE" \
-        --stack-name "$stack_name" \
+        --stack-name "$STACK_NAME" \
         --parameter-overrides $parameter_overrides \
         --tags "$stack_tags" \
-        --capabilities CAPABILITY_IAM \
-        --region "$region" \
-        $confirm_flag
+        --capabilities CAPABILITY_NAMED_IAM \
+        --region "$REGION" \
+        --no-confirm-changeset
         
-    log_success "Successfully deployed to $region"
-}
-
-# Deploy to multiple regions
-deploy_multi_region() {
-    log_info "Starting multi-region deployment"
-    log_info "Environment: $ENVIRONMENT"
-    log_info "Regions: ${REGIONS[*]}"
-    
-    build_lambda
-    validate_template
-    
-    for region in "${REGIONS[@]}"; do
-        local stack_name="$STACK_PREFIX-$ENVIRONMENT-$region"
-        echo "======================================"
-        deploy_to_region "$region" "$stack_name" "false"
-        echo ""
-    done
-    
-    log_success "Multi-region deployment complete!"
+    log_success "Successfully deployed LogGuardian to $REGION"
     echo ""
     show_deployment_status
-}
-
-# Deploy single region
-deploy_single_region() {
-    local region="${REGIONS[0]}"
-    local stack_name="$STACK_PREFIX-$ENVIRONMENT-$region"
-    
-    log_info "Starting single region deployment"
-    log_info "Environment: $ENVIRONMENT"
-    log_info "Region: $region"
-    
-    build_lambda
-    validate_template
-    
-    deploy_to_region "$region" "$stack_name" "true"
-    
-    echo ""
-    show_deployment_status
-}
-
-# Development environment deployment
-deploy_dev_environment() {
-    ENVIRONMENT="dev"
-    S3_EXPIRATION_DAYS=3
-    RETENTION_DAYS=7
-    CREATE_DASHBOARD="false"
-    LAMBDA_MEMORY=128
-    
-    log_info "Deploying development environment with optimized settings"
-    deploy_multi_region
-}
-
-# Staging environment deployment
-deploy_staging_environment() {
-    ENVIRONMENT="staging"
-    S3_EXPIRATION_DAYS=14
-    RETENTION_DAYS=30
-    CREATE_DASHBOARD="true"
-    LAMBDA_MEMORY=256
-    
-    log_info "Deploying staging environment"
-    deploy_multi_region
-}
-
-# Production environment deployment
-deploy_prod_environment() {
-    ENVIRONMENT="prod"
-    S3_EXPIRATION_DAYS=90
-    RETENTION_DAYS=365
-    CREATE_DASHBOARD="true"
-    LAMBDA_MEMORY=512
-    LAMBDA_TIMEOUT=900
-    
-    log_info "Deploying production environment with full monitoring"
-    deploy_multi_region
-}
-
-# Deploy with customer infrastructure options
-deploy_customer_infrastructure() {
-    log_info "Deploying with customer infrastructure integration"
-    
-    if [ -n "$EXISTING_KMS_KEY" ]; then
-        log_info "Using existing KMS key: $EXISTING_KMS_KEY"
-    fi
-    
-    if [ -n "$EXISTING_CONFIG_RULE" ]; then
-        log_info "Using existing Config rule: $EXISTING_CONFIG_RULE"
-    fi
-    
-    deploy_multi_region
 }
 
 # Show deployment status
 show_deployment_status() {
-    log_info "Checking deployment status across regions"
+    log_info "Checking deployment status"
     echo ""
     
-    for region in "${REGIONS[@]}"; do
-        local stack_name="$STACK_PREFIX-$ENVIRONMENT-$region"
+    echo "Region: $REGION"
+    echo "Stack: $STACK_NAME"
+    
+    # Check if stack exists
+    if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" >/dev/null 2>&1; then
+        # Get stack status
+        local stack_status=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$REGION" \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
         
-        echo "Region: $region"
-        echo "Stack: $stack_name"
+        echo "Status: $stack_status"
         
-        # Check if stack exists
-        if aws cloudformation describe-stacks --stack-name "$stack_name" --region "$region" >/dev/null 2>&1; then
-            # Get stack status
-            local stack_status=$(aws cloudformation describe-stacks \
-                --stack-name "$stack_name" \
-                --region "$region" \
-                --query 'Stacks[0].StackStatus' \
-                --output text)
+        # Get outputs
+        local outputs=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$REGION" \
+            --query 'Stacks[0].Outputs' \
+            --output table 2>/dev/null)
             
-            echo "Status: $stack_status"
-            
-            # Get dashboard URL if it exists
-            local dashboard_url=$(aws cloudformation describe-stacks \
-                --stack-name "$stack_name" \
-                --region "$region" \
-                --query 'Stacks[0].Outputs[?OutputKey==`DashboardURL`].OutputValue' \
-                --output text 2>/dev/null)
-                
-            if [ -n "$dashboard_url" ] && [ "$dashboard_url" != "None" ]; then
-                echo "Dashboard: $dashboard_url"
-            else
-                echo "Dashboard: Not created"
-            fi
-        else
-            echo "Status: NOT_DEPLOYED"
+        if [ -n "$outputs" ] && [ "$outputs" != "None" ]; then
+            echo ""
+            echo "Stack Outputs:"
+            echo "$outputs"
         fi
-        
-        echo ""
-    done
+    else
+        echo "Status: NOT_DEPLOYED"
+    fi
+    
+    echo ""
 }
 
-# Clean up deployments
-cleanup_deployments() {
-    log_warning "This will delete LogGuardian stacks in environment: $ENVIRONMENT"
-    log_warning "Regions: ${REGIONS[*]}"
+# Clean up deployment
+cleanup() {
+    log_warning "This will delete the LogGuardian stack: $STACK_NAME"
+    log_warning "Region: $REGION"
     
     read -p "Are you sure you want to continue? (y/N): " -n 1 -r
     echo
@@ -488,21 +454,16 @@ cleanup_deployments() {
         exit 0
     fi
     
-    for region in "${REGIONS[@]}"; do
-        local stack_name="$STACK_PREFIX-$ENVIRONMENT-$region"
-        
-        log_info "Deleting stack: $stack_name in region: $region"
-        
-        if aws cloudformation describe-stacks --stack-name "$stack_name" --region "$region" >/dev/null 2>&1; then
-            aws cloudformation delete-stack --stack-name "$stack_name" --region "$region"
-            log_info "Delete initiated for $stack_name"
-        else
-            log_warning "Stack $stack_name not found in region $region"
-        fi
-    done
+    log_info "Deleting stack: $STACK_NAME in region: $REGION"
     
-    log_success "Cleanup commands sent. Stacks are being deleted..."
-    log_info "Use 'status' command to monitor deletion progress"
+    if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" >/dev/null 2>&1; then
+        aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION"
+        log_info "Delete initiated for $STACK_NAME"
+        log_success "Cleanup command sent. Stack is being deleted..."
+        log_info "Use 'status' command to monitor deletion progress"
+    else
+        log_warning "Stack $STACK_NAME not found in region $REGION"
+    fi
 }
 
 # Main execution
@@ -510,29 +471,14 @@ main() {
     parse_args "$@"
     
     case $COMMAND in
-        deploy-single)
-            deploy_single_region
-            ;;
-        deploy-multi)
-            deploy_multi_region
-            ;;
-        deploy-dev)
-            deploy_dev_environment
-            ;;
-        deploy-staging)
-            deploy_staging_environment
-            ;;
-        deploy-prod)
-            deploy_prod_environment
-            ;;
-        deploy-customer)
-            deploy_customer_infrastructure
+        deploy)
+            deploy
             ;;
         status)
             show_deployment_status
             ;;
         cleanup)
-            cleanup_deployments
+            cleanup
             ;;
         validate)
             validate_template
