@@ -322,15 +322,17 @@ Resources:
       Targets:
         - Arn: !GetAtt LogGuardianFunction.Arn
           Id: "LogGuardianEncryptionTarget"
-          Input: !Sub |
-            {
-              "type": "config-rule-evaluation",
-              "configRuleName": "${!If [ShouldCreateConfigRules, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]}",
-              "region": "${AWS::Region}",
-              "account": "${AWS::AccountId}",
-              "environment": "${Environment}",
-              "batchSize": 20
-            }
+          Input: !Sub 
+            - |
+              {
+                "type": "config-rule-evaluation",
+                "configRuleName": "${ConfigRuleName}",
+                "region": "${AWS::Region}",
+                "account": "${AWS::AccountId}",
+                "environment": "${Environment}",
+                "batchSize": 20
+              }
+            - ConfigRuleName: !If [ShouldCreateConfigRules, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]
 
   RetentionScheduleRule:
     Type: AWS::Events::Rule
@@ -343,15 +345,17 @@ Resources:
       Targets:
         - Arn: !GetAtt LogGuardianFunction.Arn
           Id: "LogGuardianRetentionTarget"
-          Input: !Sub |
-            {
-              "type": "config-rule-evaluation",
-              "configRuleName": "${!If [ShouldCreateConfigRules, !Ref RetentionConfigRule, !Ref ExistingRetentionConfigRule]}",
-              "region": "${AWS::Region}",
-              "account": "${AWS::AccountId}",
-              "environment": "${Environment}",
-              "batchSize": 20
-            }
+          Input: !Sub 
+            - |
+              {
+                "type": "config-rule-evaluation",
+                "configRuleName": "${ConfigRuleName}",
+                "region": "${AWS::Region}",
+                "account": "${AWS::AccountId}",
+                "environment": "${Environment}",
+                "batchSize": 20
+              }
+            - ConfigRuleName: !If [ShouldCreateConfigRules, !Ref RetentionConfigRule, !Ref ExistingRetentionConfigRule]
 
   # Lambda permissions for EventBridge to invoke the function
   LambdaInvokePermissionEncryption:
@@ -650,12 +654,14 @@ Outputs:
 
   ManualInvocationCommand:
     Description: AWS CLI command to manually invoke the Lambda function
-    Value: !Sub |
-      aws lambda invoke --function-name ${LogGuardianFunction} --payload '{
-        "type": "config-rule-evaluation",
-        "configRuleName": "${!If [ShouldCreateConfigRules, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]}",
-        "region": "${AWS::Region}",
-        "account": "${AWS::AccountId}",
-        "environment": "${Environment}",
-        "batchSize": 20
-      }' response.json --region ${AWS::Region}
+    Value: !Sub 
+      - |
+        aws lambda invoke --function-name ${LogGuardianFunction} --payload '{
+          "type": "config-rule-evaluation",
+          "configRuleName": "${ConfigRuleName}",
+          "region": "${AWS::Region}",
+          "account": "${AWS::AccountId}",
+          "environment": "${Environment}",
+          "batchSize": 20
+        }' response.json --region ${AWS::Region}
+      - ConfigRuleName: !If [ShouldCreateConfigRules, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]
