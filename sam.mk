@@ -267,7 +267,7 @@ sam-publish-public: sam-package-sar
 	sam publish \
 		--template packaged-template.yaml \
 		--region ca-central-1 \
-		--semantic-version 1.0.0
+		--semantic-version 1.0.1
 	@echo "Application published to SAR with public access"
 
 # Clean SAM artifacts
