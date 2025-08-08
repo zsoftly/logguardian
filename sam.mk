@@ -238,29 +238,37 @@ sam-deploy-enterprise: sam-build sam-validate
 			Owner=Enterprise-Security \
 		--resolve-s3
 
-# SAM package for AWS Marketplace
-.PHONY: sam-package-marketplace
-sam-package-marketplace: sam-build sam-validate
-	@echo "Packaging for AWS Marketplace..."
-	@if [ -z "$(MARKETPLACE_BUCKET)" ]; then \
-		echo "Error: MARKETPLACE_BUCKET environment variable is required"; \
-		exit 1; \
-	fi
+# SAM package for AWS Serverless Application Repository
+.PHONY: sam-package-sar
+sam-package-sar: sam-build sam-validate
+	@echo "Packaging for AWS Serverless Application Repository..."
 	sam package \
 		--template-file template.yaml \
-		--s3-bucket $(MARKETPLACE_BUCKET) \
+		--resolve-s3 \
 		--output-template-file packaged-template.yaml
 	@echo "Packaged template ready: packaged-template.yaml"
 
 # SAM publish to AWS Serverless Application Repository
 # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-publish.html
 .PHONY: sam-publish
-sam-publish: sam-package-marketplace
+sam-publish: sam-package-sar
 	@echo "Publishing to AWS Serverless Application Repository..."
 	sam publish \
 		--template packaged-template.yaml \
 		--region ca-central-1
 	@echo "Application published to SAR"
+
+# SAM publish with public access
+.PHONY: sam-publish-public
+sam-publish-public: sam-package-sar
+	@echo "Publishing to AWS Serverless Application Repository (PUBLIC ACCESS)..."
+	@echo "WARNING: This will make the application publicly accessible to all AWS users"
+	@read -p "Are you sure you want to publish publicly? (y/N): " confirm && [ "$$confirm" = "y" ]
+	sam publish \
+		--template packaged-template.yaml \
+		--region ca-central-1 \
+		--semantic-version 1.0.0
+	@echo "Application published to SAR with public access"
 
 # Clean SAM artifacts
 .PHONY: sam-clean
@@ -269,11 +277,11 @@ sam-clean:
 	rm -rf .aws-sam/
 	rm -f packaged-template.yaml
 
-# Complete SAM workflow for marketplace
-.PHONY: sam-marketplace-ready
-sam-marketplace-ready: clean sam-build sam-validate test security sam-package-marketplace
-	@echo "LogGuardian is ready for AWS Marketplace deployment!"
+# Complete SAM workflow for AWS Serverless Application Repository
+.PHONY: sam-sar-ready
+sam-sar-ready: clean sam-build sam-validate test security sam-package-sar
+	@echo "LogGuardian is ready for AWS Serverless Application Repository!"
 	@echo "Next steps:"
 	@echo "1. Review packaged-template.yaml"
 	@echo "2. Run 'make sam-publish' to publish to AWS Serverless Application Repository"
-	@echo "3. Submit to AWS Marketplace Partner Portal"
+	@echo "3. Share the SAR application URL with users"

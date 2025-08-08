@@ -9,10 +9,10 @@ Metadata:
     Author: 'ZSoftly Technologies Inc'
     SpdxLicenseId: MIT
     LicenseUrl: LICENSE
-    ReadmeUrl: README.md
+    ReadmeUrl: README-SAR.md
     Labels: ['cloudwatch', 'compliance', 'security', 'kms', 'logs']
     HomePageUrl: https://github.com/zsoftly/logguardian
-    SemanticVersion: 1.0.0
+    SemanticVersion: 1.0.1
     SourceCodeUrl: https://github.com/zsoftly/logguardian
 
 Parameters:
