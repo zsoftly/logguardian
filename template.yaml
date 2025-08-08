@@ -322,7 +322,7 @@ Resources:
       Targets:
         - Arn: !GetAtt LogGuardianFunction.Arn
           Id: "LogGuardianEncryptionTarget"
-          Input: !Sub 
+          Input: !Sub
             - |
               {
                 "type": "config-rule-evaluation",
