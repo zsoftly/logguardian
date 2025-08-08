@@ -162,53 +162,6 @@ sam-validate:
 	@echo "Validating SAM template..."
 	sam validate --template template.yaml --region ca-central-1
 
-# SAM deploy for development
-.PHONY: sam-deploy-dev
-sam-deploy-dev: sam-build sam-validate
-	@echo "Deploying development environment..."
-	sam deploy \
-		--template-file template.yaml \
-		--stack-name logguardian-dev \
-		--capabilities CAPABILITY_NAMED_IAM \
-		--parameter-overrides \
-			Environment=dev \
-			CreateKMSKey=true \
-			CreateConfigService=true \
-			CreateConfigRules=true \
-			CreateEventBridgeRules=true \
-			CreateMonitoringDashboard=false \
-			DefaultRetentionDays=7 \
-			LambdaMemorySize=256 \
-			S3ExpirationDays=3 \
-			ProductName=LogGuardian-Dev \
-			Owner=DevOps-Team \
-		--resolve-s3
-
-# SAM deploy for production
-.PHONY: sam-deploy-prod
-sam-deploy-prod: sam-build sam-validate
-	@echo "Deploying production environment..."
-	@echo "WARNING: Deploying to production environment!"
-	@read -p "Are you sure you want to deploy to production? (y/N): " confirm && [ "$$confirm" = "y" ]
-	sam deploy \
-		--template-file template.yaml \
-		--stack-name logguardian-prod \
-		--capabilities CAPABILITY_NAMED_IAM \
-		--parameter-overrides \
-			Environment=prod \
-			CreateKMSKey=true \
-			CreateConfigService=true \
-			CreateConfigRules=true \
-			CreateEventBridgeRules=true \
-			CreateMonitoringDashboard=true \
-			DefaultRetentionDays=365 \
-			LambdaMemorySize=512 \
-			S3ExpirationDays=90 \
-			EnableStaggeredScheduling=true \
-			ProductName=LogGuardian \
-			Owner=Platform-Team \
-		--resolve-s3
-
 # SAM deploy enterprise scenario (using existing infrastructure)
 .PHONY: sam-deploy-enterprise
 sam-deploy-enterprise: sam-build sam-validate
@@ -232,10 +185,6 @@ sam-deploy-enterprise: sam-build sam-validate
 			CreateMonitoringDashboard=false \
 			CustomerTagPrefix=Enterprise-LogGuardian \
 			Owner=Enterprise-Security \
-		--resolve-s3 \
-			CreateMonitoringDashboard=false \
-			CustomerTagPrefix=Enterprise-LogGuardian \
-			Owner=Enterprise-Security \
 		--resolve-s3
 
 # SAM package for AWS Serverless Application Repository
@@ -249,7 +198,6 @@ sam-package-sar: sam-build sam-validate
 	@echo "Packaged template ready: packaged-template.yaml"
 
 # SAM publish to AWS Serverless Application Repository
-# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-publish.html
 .PHONY: sam-publish
 sam-publish: sam-package-sar
 	@echo "Publishing to AWS Serverless Application Repository..."
@@ -279,7 +227,7 @@ sam-clean:
 
 # Complete SAM workflow for AWS Serverless Application Repository
 .PHONY: sam-sar-ready
-sam-sar-ready: clean sam-build sam-validate test security sam-package-sar
+sam-sar-ready: clean sam-build sam-validate test sam-package-sar
 	@echo "LogGuardian is ready for AWS Serverless Application Repository!"
 	@echo "Next steps:"
 	@echo "1. Review packaged-template.yaml"

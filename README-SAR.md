@@ -25,7 +25,7 @@ LogGuardian automatically ensures your AWS CloudWatch log groups meet enterprise
 # Get the application
 aws serverlessrepo create-cloud-formation-template \
   --application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-  --semantic-version 1.0.1 \
+  --semantic-version 1.0.2 \
   --region ca-central-1
 
 # Deploy the template
