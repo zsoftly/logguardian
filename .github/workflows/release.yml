@@ -22,9 +22,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      tag_name: ${{ steps.get_tag.outputs.tag_name }}
     
     steps:
       - name: Checkout code
@@ -91,21 +88,18 @@ jobs:
             echo "- Initial release of LogGuardian Go Lambda function" >> changelog.md
           fi
           
-          # Set output for release notes using file method
+          # Use GitHub's recommended heredoc pattern for multiline outputs
           {
-            echo 'changelog<<CHANGELOG_EOF'
+            echo 'changelog<<EOF'
             cat changelog.md
-            echo 'CHANGELOG_EOF'
+            echo 'EOF'
           } >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_tag.outputs.tag_name }}
-          release_name: LogGuardian ${{ steps.get_tag.outputs.tag_name }}
+          name: LogGuardian ${{ steps.get_tag.outputs.tag_name }}
           body: |
             ${{ steps.changelog.outputs.changelog }}
             
@@ -129,33 +123,9 @@ jobs:
             ```
           draft: false
           prerelease: ${{ contains(steps.get_tag.outputs.tag_name, 'alpha') || contains(steps.get_tag.outputs.tag_name, 'beta') || contains(steps.get_tag.outputs.tag_name, 'rc') }}
-
-      - name: Upload Lambda deployment package
-        uses: actions/upload-release-asset@v1
+          files: |
+            dist/logguardian-compliance-${{ steps.get_tag.outputs.tag_name }}.zip
+            dist/logguardian-source-${{ steps.get_tag.outputs.tag_name }}.zip
+            dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/logguardian-compliance-${{ steps.get_tag.outputs.tag_name }}.zip
-          asset_name: logguardian-compliance-${{ steps.get_tag.outputs.tag_name }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload source archive
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/logguardian-source-${{ steps.get_tag.outputs.tag_name }}.zip
-          asset_name: logguardian-source-${{ steps.get_tag.outputs.tag_name }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload checksums
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/checksums.txt
-          asset_name: checksums.txt
-          asset_content_type: text/plain
