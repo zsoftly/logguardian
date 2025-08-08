@@ -253,12 +253,13 @@ sam-package-marketplace: sam-build sam-validate
 	@echo "Packaged template ready: packaged-template.yaml"
 
 # SAM publish to AWS Serverless Application Repository
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-publish.html
 .PHONY: sam-publish
 sam-publish: sam-package-marketplace
 	@echo "Publishing to AWS Serverless Application Repository..."
 	sam publish \
 		--template packaged-template.yaml \
-		--region us-east-1
+		--region ca-central-1
 	@echo "Application published to SAR"
 
 # Clean SAM artifacts
