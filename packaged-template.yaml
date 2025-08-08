@@ -10,7 +10,7 @@ Metadata:
     Author: ZSoftly Technologies Inc
     SpdxLicenseId: MIT
     LicenseUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-oxpepeo8ipdm/c65ff0cf9a9b0fc7ecb08d286790ddf2
-    ReadmeUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-oxpepeo8ipdm/f66e3e8aa7f410b91c1c9082796ae4cc
+    ReadmeUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-oxpepeo8ipdm/b0d3124f54ac776fa1b770aeac9f278b
     Labels:
     - cloudwatch
     - compliance
@@ -18,21 +18,14 @@ Metadata:
     - kms
     - logs
     HomePageUrl: https://github.com/zsoftly/logguardian
-    SemanticVersion: 1.0.0
+    SemanticVersion: 1.0.1
     SourceCodeUrl: https://github.com/zsoftly/logguardian
 Parameters:
   Environment:
     Type: String
-    Default: prod
-    Description: Deployment environment
-    AllowedValues:
-    - dev
-    - staging
-    - prod
-    - sandbox
+    Description: Deployment environment (e.g., dev, staging, prod, test)
   CreateKMSKey:
     Type: String
-    Default: 'true'
     Description: Create new KMS key or use existing one
     AllowedValues:
     - 'true'
@@ -43,12 +36,10 @@ Parameters:
     Description: ARN of existing KMS key (required if CreateKMSKey=false)
   KMSKeyAlias:
     Type: String
-    Default: alias/logguardian-logs
     Description: KMS key alias for new key or reference to existing key
     AllowedPattern: ^alias/[a-zA-Z0-9:/_-]+$
   CreateConfigService:
     Type: String
-    Default: 'true'
     Description: Create Config service resources (recorder, delivery channel, bucket)
     AllowedValues:
     - 'true'
@@ -63,7 +54,6 @@ Parameters:
     Description: ARN of existing Config service role (required if CreateConfigService=false)
   CreateConfigRules:
     Type: String
-    Default: 'true'
     Description: Create new Config rules or use existing ones
     AllowedValues:
     - 'true'
@@ -78,51 +68,43 @@ Parameters:
     Description: Name of existing retention Config rule (required if CreateConfigRules=false)
   CreateEventBridgeRules:
     Type: String
-    Default: 'true'
     Description: Create EventBridge scheduling rules (disable for manual invocation)
     AllowedValues:
     - 'true'
     - 'false'
-  ScheduleExpression:
+  EncryptionScheduleExpression:
     Type: String
-    Default: cron(0 2 ? * SAT *)
-    Description: How often to run compliance checks (only used if CreateEventBridgeRules=true)
+    Description: Schedule for encryption compliance checks (e.g., cron(0 2 ? * * *)
+      for daily at 2 AM)
     AllowedPattern: ^(rate\(.*\)|cron\(.*\))$
-  EnableStaggeredScheduling:
+  RetentionScheduleExpression:
     Type: String
-    Default: 'true'
-    Description: Enable staggered scheduling for encryption and retention checks
-    AllowedValues:
-    - 'true'
-    - 'false'
+    Description: Schedule for retention compliance checks (e.g., cron(0 3 ? * * *)
+      for daily at 3 AM)
+    AllowedPattern: ^(rate\(.*\)|cron\(.*\))$
   DefaultRetentionDays:
     Type: Number
-    Default: 30
     MinValue: 1
     MaxValue: 3653
     Description: Default retention period for log groups in days
   LambdaMemorySize:
     Type: Number
-    Default: 256
     MinValue: 128
     MaxValue: 3008
     Description: Memory allocation for Lambda function (MB)
   LambdaTimeout:
     Type: Number
-    Default: 900
     MinValue: 1
     MaxValue: 900
     Description: Lambda function timeout in seconds
   S3ExpirationDays:
     Type: Number
-    Default: 14
     MinValue: 1
     MaxValue: 3653
     Description: Days after which Config data is permanently deleted (only applies
       to new buckets)
   EnableS3LifecycleRules:
     Type: String
-    Default: 'true'
     Description: Enable S3 lifecycle rules for cost optimization (only applies to
       new buckets)
     AllowedValues:
@@ -130,18 +112,15 @@ Parameters:
     - 'false'
   CreateMonitoringDashboard:
     Type: String
-    Default: 'false'
     Description: Create CloudWatch dashboard for monitoring
     AllowedValues:
     - 'true'
     - 'false'
   ProductName:
     Type: String
-    Default: LogGuardian
     Description: Product name for resource tagging
   Owner:
     Type: String
-    Default: ZSoftly
     Description: Owner/Team responsible for this deployment
   CustomerTagPrefix:
     Type: String
@@ -149,60 +128,24 @@ Parameters:
     Description: Customer-specific tag prefix (optional)
   ManagedBy:
     Type: String
-    Default: SAM
-    Description: How this stack is managed
-    AllowedValues:
-    - SAM
-    - CloudFormation
-    - Terraform
+    Description: How this stack is managed (e.g., SAM, CloudFormation, Terraform)
 Conditions:
   ShouldCreateKMSKey:
     Fn::Equals:
     - Ref: CreateKMSKey
     - 'true'
-  HasExistingKMSKey:
-    Fn::Not:
-    - Fn::Equals:
-      - Ref: ExistingKMSKeyArn
-      - ''
   ShouldCreateConfigService:
     Fn::Equals:
     - Ref: CreateConfigService
     - 'true'
-  HasExistingConfigBucket:
-    Fn::Not:
-    - Fn::Equals:
-      - Ref: ExistingConfigBucket
-      - ''
-  HasExistingConfigRole:
-    Fn::Not:
-    - Fn::Equals:
-      - Ref: ExistingConfigServiceRoleArn
-      - ''
   ShouldCreateConfigRules:
     Fn::Equals:
     - Ref: CreateConfigRules
     - 'true'
-  HasExistingEncryptionRule:
-    Fn::Not:
-    - Fn::Equals:
-      - Ref: ExistingEncryptionConfigRule
-      - ''
-  HasExistingRetentionRule:
-    Fn::Not:
-    - Fn::Equals:
-      - Ref: ExistingRetentionConfigRule
-      - ''
   ShouldCreateEventBridgeRules:
     Fn::Equals:
     - Ref: CreateEventBridgeRules
     - 'true'
-  IsStaggeredScheduling:
-    Fn::And:
-    - Condition: ShouldCreateEventBridgeRules
-    - Fn::Equals:
-      - Ref: EnableStaggeredScheduling
-      - 'true'
   IsS3LifecycleEnabled:
     Fn::And:
     - Condition: ShouldCreateConfigService
@@ -218,48 +161,6 @@ Conditions:
     - Fn::Equals:
       - Ref: CustomerTagPrefix
       - ''
-  IsHourlySchedule:
-    Fn::Or:
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(1 hour)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(2 hours)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(4 hours)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(6 hours)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(8 hours)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(12 hours)
-  IsDailySchedule:
-    Fn::Or:
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(24 hours)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(1 day)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - cron(0 0 * * ? *)
-  IsWeeklySchedule:
-    Fn::Or:
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - rate(7 days)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - cron(0 2 ? * SAT *)
-    - Fn::Equals:
-      - Ref: ScheduleExpression
-      - cron(0 0 ? * MON *)
 Globals:
   Function:
     Runtime: provided.al2023
@@ -310,7 +211,6 @@ Globals:
       ManagedBy:
         Ref: ManagedBy
       Application: LogGuardian
-      Version: 1.0.0
       CreatedBy: SAM-Template
 Resources:
   LogGuardianKMSKey:
@@ -404,7 +304,7 @@ Resources:
     Properties:
       FunctionName:
         Fn::Sub: logguardian-compliance-${Environment}
-      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-oxpepeo8ipdm/c54409bd8911846ee1a60476d3631e56
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-oxpepeo8ipdm/0865260a163d40c6e9e51273d4b47caf
       Handler: bootstrap
       Description: LogGuardian compliance automation for CloudWatch log groups
       Policies:
@@ -456,7 +356,7 @@ Resources:
         Fn::Sub: logguardian-encryption-schedule-${Environment}
       Description: Scheduled trigger for LogGuardian encryption compliance checks
       ScheduleExpression:
-        Ref: ScheduleExpression
+        Ref: EncryptionScheduleExpression
       State: ENABLED
       Targets:
       - Arn:
@@ -477,21 +377,9 @@ Resources:
     Properties:
       Name:
         Fn::Sub: logguardian-retention-schedule-${Environment}
-      Description: Scheduled trigger for LogGuardian retention compliance checks (staggered)
+      Description: Scheduled trigger for LogGuardian retention compliance checks
       ScheduleExpression:
-        Fn::If:
-        - IsStaggeredScheduling
-        - Fn::If:
-          - IsHourlySchedule
-          - cron(30 * * * ? *)
-          - Fn::If:
-            - IsDailySchedule
-            - cron(30 0 * * ? *)
-            - Fn::If:
-              - IsWeeklySchedule
-              - cron(0 2 ? * SUN *)
-              - cron(30 0 1 * ? *)
-        - Ref: ScheduleExpression
+        Ref: RetentionScheduleExpression
       State: ENABLED
       Targets:
       - Arn:

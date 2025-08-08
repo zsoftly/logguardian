@@ -19,14 +19,11 @@ Parameters:
   # Environment and Basic Configuration
   Environment:
     Type: String
-    Default: prod
-    Description: Deployment environment
-    AllowedValues: [dev, staging, prod, sandbox]
+    Description: Deployment environment (e.g., dev, staging, prod, test)
 
   # KMS Configuration - Optional
   CreateKMSKey:
     Type: String
-    Default: "true"
     Description: Create new KMS key or use existing one
     AllowedValues: ["true", "false"]
 
@@ -37,14 +34,12 @@ Parameters:
 
   KMSKeyAlias:
     Type: String
-    Default: alias/logguardian-logs
     Description: KMS key alias for new key or reference to existing key
     AllowedPattern: "^alias/[a-zA-Z0-9:/_-]+$"
 
   # AWS Config Configuration - Optional
   CreateConfigService:
     Type: String
-    Default: "true"
     Description: Create Config service resources (recorder, delivery channel, bucket)
     AllowedValues: ["true", "false"]
 
@@ -61,7 +56,6 @@ Parameters:
   # Config Rules Configuration - Optional
   CreateConfigRules:
     Type: String
-    Default: "true"
     Description: Create new Config rules or use existing ones
     AllowedValues: ["true", "false"]
 
@@ -78,40 +72,34 @@ Parameters:
   # EventBridge Scheduling - Optional
   CreateEventBridgeRules:
     Type: String
-    Default: "true"
     Description: Create EventBridge scheduling rules (disable for manual invocation)
     AllowedValues: ["true", "false"]
 
-  ScheduleExpression:
+  EncryptionScheduleExpression:
     Type: String
-    Default: "cron(0 2 ? * SAT *)"
-    Description: How often to run compliance checks (only used if CreateEventBridgeRules=true)
+    Description: Schedule for encryption compliance checks (e.g., cron(0 2 ? * * *) for daily at 2 AM)
     AllowedPattern: "^(rate\\(.*\\)|cron\\(.*\\))$"
 
-  EnableStaggeredScheduling:
+  RetentionScheduleExpression:
     Type: String
-    Default: "true"
-    Description: Enable staggered scheduling for encryption and retention checks
-    AllowedValues: ["true", "false"]
+    Description: Schedule for retention compliance checks (e.g., cron(0 3 ? * * *) for daily at 3 AM)
+    AllowedPattern: "^(rate\\(.*\\)|cron\\(.*\\))$"
 
   # Lambda Configuration
   DefaultRetentionDays:
     Type: Number
-    Default: 30
     MinValue: 1
     MaxValue: 3653
     Description: Default retention period for log groups in days
 
   LambdaMemorySize:
     Type: Number
-    Default: 256
     MinValue: 128
     MaxValue: 3008
     Description: Memory allocation for Lambda function (MB)
 
   LambdaTimeout:
     Type: Number
-    Default: 900
     MinValue: 1
     MaxValue: 900
     Description: Lambda function timeout in seconds
@@ -119,33 +107,28 @@ Parameters:
   # S3 Lifecycle Configuration (only for new Config bucket)
   S3ExpirationDays:
     Type: Number
-    Default: 14
     MinValue: 1
     MaxValue: 3653
     Description: Days after which Config data is permanently deleted (only applies to new buckets)
 
   EnableS3LifecycleRules:
     Type: String
-    Default: "true"
     Description: Enable S3 lifecycle rules for cost optimization (only applies to new buckets)
     AllowedValues: ["true", "false"]
 
   # Monitoring Configuration - Optional
   CreateMonitoringDashboard:
     Type: String
-    Default: "false"
     Description: Create CloudWatch dashboard for monitoring
     AllowedValues: ["true", "false"]
 
   # Resource Tagging
   ProductName:
     Type: String
-    Default: "LogGuardian"
     Description: Product name for resource tagging
 
   Owner:
     Type: String
-    Default: "ZSoftly"
     Description: Owner/Team responsible for this deployment
 
   CustomerTagPrefix:
@@ -155,29 +138,21 @@ Parameters:
 
   ManagedBy:
     Type: String
-    Default: "SAM"
-    Description: How this stack is managed
-    AllowedValues: ["SAM", "CloudFormation", "Terraform"]
+    Description: How this stack is managed (e.g., SAM, CloudFormation, Terraform)
 
 # Conditions for optional resource creation
 Conditions:
   # KMS Conditions
   ShouldCreateKMSKey: !Equals [!Ref CreateKMSKey, "true"]
-  HasExistingKMSKey: !Not [!Equals [!Ref ExistingKMSKeyArn, ""]]
 
   # Config Service Conditions
   ShouldCreateConfigService: !Equals [!Ref CreateConfigService, "true"]
-  HasExistingConfigBucket: !Not [!Equals [!Ref ExistingConfigBucket, ""]]
-  HasExistingConfigRole: !Not [!Equals [!Ref ExistingConfigServiceRoleArn, ""]]
 
   # Config Rules Conditions
   ShouldCreateConfigRules: !Equals [!Ref CreateConfigRules, "true"]
-  HasExistingEncryptionRule: !Not [!Equals [!Ref ExistingEncryptionConfigRule, ""]]
-  HasExistingRetentionRule: !Not [!Equals [!Ref ExistingRetentionConfigRule, ""]]
 
   # EventBridge Conditions
   ShouldCreateEventBridgeRules: !Equals [!Ref CreateEventBridgeRules, "true"]
-  IsStaggeredScheduling: !And [!Condition ShouldCreateEventBridgeRules, !Equals [!Ref EnableStaggeredScheduling, "true"]]
 
   # S3 and Monitoring Conditions
   IsS3LifecycleEnabled: !And [!Condition ShouldCreateConfigService, !Equals [!Ref EnableS3LifecycleRules, "true"]]
@@ -185,23 +160,6 @@ Conditions:
 
   # Tagging Conditions
   HasCustomerTagPrefix: !Not [!Equals [!Ref CustomerTagPrefix, ""]]
-
-  # Schedule Type Detection (for staggered scheduling)
-  IsHourlySchedule: !Or
-    - !Equals [!Ref ScheduleExpression, "rate(1 hour)"]
-    - !Equals [!Ref ScheduleExpression, "rate(2 hours)"]
-    - !Equals [!Ref ScheduleExpression, "rate(4 hours)"]
-    - !Equals [!Ref ScheduleExpression, "rate(6 hours)"]
-    - !Equals [!Ref ScheduleExpression, "rate(8 hours)"]
-    - !Equals [!Ref ScheduleExpression, "rate(12 hours)"]
-  IsDailySchedule: !Or
-    - !Equals [!Ref ScheduleExpression, "rate(24 hours)"]
-    - !Equals [!Ref ScheduleExpression, "rate(1 day)"]
-    - !Equals [!Ref ScheduleExpression, "cron(0 0 * * ? *)"]
-  IsWeeklySchedule: !Or
-    - !Equals [!Ref ScheduleExpression, "rate(7 days)"]
-    - !Equals [!Ref ScheduleExpression, "cron(0 2 ? * SAT *)"]
-    - !Equals [!Ref ScheduleExpression, "cron(0 0 ? * MON *)"]
 
 # Global settings for Lambda function
 Globals:
@@ -238,7 +196,6 @@ Globals:
       Environment: !Ref Environment
       ManagedBy: !Ref ManagedBy
       Application: LogGuardian
-      Version: "1.0.0"
       CreatedBy: "SAM-Template"
 
 Resources:
@@ -360,7 +317,7 @@ Resources:
     Properties:
       Name: !Sub "logguardian-encryption-schedule-${Environment}"
       Description: "Scheduled trigger for LogGuardian encryption compliance checks"
-      ScheduleExpression: !Ref ScheduleExpression
+      ScheduleExpression: !Ref EncryptionScheduleExpression
       State: ENABLED
       Targets:
         - Arn: !GetAtt LogGuardianFunction.Arn
@@ -380,20 +337,8 @@ Resources:
     Condition: ShouldCreateEventBridgeRules
     Properties:
       Name: !Sub "logguardian-retention-schedule-${Environment}"
-      Description: "Scheduled trigger for LogGuardian retention compliance checks (staggered)"
-      ScheduleExpression: !If 
-        - IsStaggeredScheduling
-        - !If 
-          - IsHourlySchedule
-          - "cron(30 * * * ? *)"
-          - !If 
-            - IsDailySchedule  
-            - "cron(30 0 * * ? *)"
-            - !If
-              - IsWeeklySchedule
-              - "cron(0 2 ? * SUN *)"
-              - "cron(30 0 1 * ? *)"
-        - !Ref ScheduleExpression
+      Description: "Scheduled trigger for LogGuardian retention compliance checks"
+      ScheduleExpression: !Ref RetentionScheduleExpression
       State: ENABLED
       Targets:
         - Arn: !GetAtt LogGuardianFunction.Arn
