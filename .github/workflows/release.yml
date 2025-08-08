@@ -91,10 +91,12 @@ jobs:
             echo "- Initial release of LogGuardian Go Lambda function" >> changelog.md
           fi
           
-          # Set output for release notes
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          cat changelog.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Set output for release notes using file method
+          {
+            echo 'changelog<<CHANGELOG_EOF'
+            cat changelog.md
+            echo 'CHANGELOG_EOF'
+          } >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         id: create_release
