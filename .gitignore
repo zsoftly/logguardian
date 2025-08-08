@@ -188,9 +188,15 @@ main
 function.zip
 deployment-package.zip
 
-# AWS SAM
+# AWS SAM and CloudFormation artifacts
 .aws-sam/
 samconfig.toml
+packaged-template.yaml
+packaged-template.yml
+*-packaged.yaml
+*-packaged.yml
+logguardian-template.yaml
+logguardian-template.yml
 
 # Node.js (if any frontend tooling is added)
 node_modules/

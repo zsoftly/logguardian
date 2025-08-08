@@ -162,52 +162,61 @@ sam-validate:
 	@echo "Validating SAM template..."
 	sam validate --template template.yaml --region ca-central-1
 
-# SAM deploy for development
-.PHONY: sam-deploy-dev
-sam-deploy-dev: sam-build sam-validate
-	@echo "Deploying with SAM (development)..."
+# SAM deploy enterprise scenario (using existing infrastructure)
+.PHONY: sam-deploy-enterprise
+sam-deploy-enterprise: sam-build sam-validate
+	@echo "Deploying enterprise scenario (using existing infrastructure)..."
+	@echo "NOTE: Update the parameter values with your actual existing resource ARNs"
 	sam deploy \
 		--template-file template.yaml \
-		--stack-name logguardian-dev \
-		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-		--parameter-overrides Environment=dev \
+		--stack-name logguardian-enterprise \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--parameter-overrides \
+			Environment=prod \
+			CreateKMSKey=false \
+			ExistingKMSKeyArn=arn:aws:kms:ca-central-1:ACCOUNT:key/KEY-ID \
+			CreateConfigService=false \
+			ExistingConfigBucket=enterprise-config-bucket \
+			ExistingConfigServiceRoleArn=arn:aws:iam::ACCOUNT:role/ConfigRole \
+			CreateConfigRules=false \
+			ExistingEncryptionConfigRule=enterprise-encryption-rule \
+			ExistingRetentionConfigRule=enterprise-retention-rule \
+			CreateEventBridgeRules=false \
+			CreateMonitoringDashboard=false \
+			CustomerTagPrefix=Enterprise-LogGuardian \
+			Owner=Enterprise-Security \
 		--resolve-s3
 
-# SAM deploy for production
-.PHONY: sam-deploy-prod
-sam-deploy-prod: sam-build sam-validate
-	@echo "Deploying with SAM (production)..."
-	@echo "WARNING: Deploying to production environment!"
-	@read -p "Are you sure you want to deploy to production? (y/N): " confirm && [ "$$confirm" = "y" ]
-	sam deploy \
-		--template-file template.yaml \
-		--stack-name logguardian-prod \
-		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-		--parameter-overrides Environment=prod \
-		--resolve-s3
-
-# SAM package for AWS Marketplace
-.PHONY: sam-package-marketplace
-sam-package-marketplace: sam-build sam-validate
-	@echo "Packaging for AWS Marketplace..."
-	@if [ -z "$(MARKETPLACE_BUCKET)" ]; then \
-		echo "Error: MARKETPLACE_BUCKET environment variable is required"; \
-		exit 1; \
-	fi
+# SAM package for AWS Serverless Application Repository
+.PHONY: sam-package-sar
+sam-package-sar: sam-build sam-validate
+	@echo "Packaging for AWS Serverless Application Repository..."
 	sam package \
 		--template-file template.yaml \
-		--s3-bucket $(MARKETPLACE_BUCKET) \
+		--resolve-s3 \
 		--output-template-file packaged-template.yaml
 	@echo "Packaged template ready: packaged-template.yaml"
 
 # SAM publish to AWS Serverless Application Repository
 .PHONY: sam-publish
-sam-publish: sam-package-marketplace
+sam-publish: sam-package-sar
 	@echo "Publishing to AWS Serverless Application Repository..."
 	sam publish \
 		--template packaged-template.yaml \
-		--region us-east-1
+		--region ca-central-1
 	@echo "Application published to SAR"
+
+# SAM publish with public access
+.PHONY: sam-publish-public
+sam-publish-public: sam-package-sar
+	@echo "Publishing to AWS Serverless Application Repository (PUBLIC ACCESS)..."
+	@echo "WARNING: This will make the application publicly accessible to all AWS users"
+	@read -p "Are you sure you want to publish publicly? (y/N): " confirm && [ "$$confirm" = "y" ]
+	sam publish \
+		--template packaged-template.yaml \
+		--region ca-central-1 \
+		--semantic-version 1.0.1
+	@echo "Application published to SAR with public access"
 
 # Clean SAM artifacts
 .PHONY: sam-clean
@@ -216,11 +225,11 @@ sam-clean:
 	rm -rf .aws-sam/
 	rm -f packaged-template.yaml
 
-# Complete SAM workflow for marketplace
-.PHONY: sam-marketplace-ready
-sam-marketplace-ready: clean sam-build sam-validate test security sam-package-marketplace
-	@echo "LogGuardian is ready for AWS Marketplace deployment!"
+# Complete SAM workflow for AWS Serverless Application Repository
+.PHONY: sam-sar-ready
+sam-sar-ready: clean sam-build sam-validate test sam-package-sar
+	@echo "LogGuardian is ready for AWS Serverless Application Repository!"
 	@echo "Next steps:"
 	@echo "1. Review packaged-template.yaml"
 	@echo "2. Run 'make sam-publish' to publish to AWS Serverless Application Repository"
-	@echo "3. Submit to AWS Marketplace Partner Portal"
+	@echo "3. Share the SAR application URL with users"

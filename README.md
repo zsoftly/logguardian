@@ -19,10 +19,10 @@
 
 ## Quick Start
 
-### One-Click AWS Marketplace Deployment
-[![Deploy from AWS Marketplace](https://img.shields.io/badge/Deploy-AWS%20Marketplace-FF9900?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com/marketplace/pp/prodview-logguardian)
+### One-Click AWS Serverless Application Repository Deployment
+[![Deploy from AWS SAR](https://img.shields.io/badge/Deploy-AWS%20SAR-FF9900?style=for-the-badge&logo=amazon-aws)](https://ca-central-1.console.aws.amazon.com/serverlessrepo/home?region=ca-central-1#/available-applications/arn:aws:serverlessrepo:ca-central-1:410129828371:applications~LogGuardian)
 
-**→ [Launch LogGuardian from AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-logguardian)**
+**→ [Launch LogGuardian from AWS Serverless Application Repository](https://ca-central-1.console.aws.amazon.com/serverlessrepo/home?region=ca-central-1#/available-applications/arn:aws:serverlessrepo:ca-central-1:410129828371:applications~LogGuardian)**
 
 ### Manual Deployment (SAM)
 ```bash
@@ -178,40 +178,42 @@ LogGuardian transforms CloudWatch log group compliance from a manual, error-pron
 
 ## 🚀 Deployment Options
 
-### **Option 1: AWS Marketplace (Recommended)**
+### **Option 1: AWS Serverless Application Repository (Recommended)**
 
-**One-click deployment with enterprise support**
+**One-click deployment with AWS SAR**
 
-[![Deploy Now](https://img.shields.io/badge/Deploy%20Now-AWS%20Marketplace-FF9900?style=for-the-badge)](https://aws.amazon.com/marketplace/pp/prodview-logguardian)
+[![Deploy Now](https://img.shields.io/badge/Deploy%20Now-AWS%20SAR-FF9900?style=for-the-badge)](https://ca-central-1.console.aws.amazon.com/serverlessrepo/home?region=ca-central-1#/available-applications/arn:aws:serverlessrepo:ca-central-1:410129828371:applications~LogGuardian)
 
 **Benefits:**
 - ✅ One-click deployment
-- ✅ Pre-configured best practices
-- ✅ Enterprise support included
-- ✅ Automatic updates
-- ✅ 30-day free trial
+- ✅ Pre-configured best practices  
+- ✅ Public and free to use
+- ✅ AWS-managed distribution
+- ✅ Version controlled releases
 
-**Pricing:** Starting at $99/month per AWS account
+**Pricing:** **Free** - Open source with no licensing fees
 
-### **Option 2: Manual CloudFormation Deployment**
+### **Option 2: Manual SAM Deployment**
 
-**Free open-source deployment**
+**Direct SAM deployment from source**
 
 ```bash
 # 1. Clone repository
 git clone https://github.com/zsoftly/logguardian.git
 cd logguardian
 
-# 2. Configure parameters
-cp config/example.yaml config/production.yaml
-# Edit config/production.yaml with your settings
+# 2. Build and package
+make build && make package
 
-# 3. Deploy stack
-aws cloudformation deploy \
-  --template-file templates/logguardian.yaml \
-  --stack-name logguardian-prod \
-  --parameter-overrides file://config/production.yaml \
-  --capabilities CAPABILITY_IAM
+# 3. Deploy with SAM
+sam deploy --guided --parameter-overrides \
+  Environment=prod \
+  CreateKMSKey=true \
+  KMSKeyAlias=alias/logguardian-logs-prod \
+  CreateConfigService=true \
+  CreateConfigRules=true \
+  CreateEventBridgeRules=true \
+  DefaultRetentionDays=365
 ```
 
 ### **Option 3: Terraform Deployment**
@@ -248,7 +250,14 @@ module "logguardian" {
 
 ## AWS SAM Architecture
 
-LogGuardian uses AWS SAM (Serverless Application Model) for deployment, following AWS Marketplace best practices:
+LogGuardian uses AWS SAM (Serverless Application Model) for deployment and is distributed through AWS Serverless Application Repository (SAR):
+
+### **SAR Distribution Benefits**
+- **Public Availability**: Anyone can deploy LogGuardian directly from AWS SAR
+- **Version Control**: Each release is tracked and versioned in SAR
+- **AWS Integration**: Native integration with AWS console and CLI
+- **No Account Dependencies**: Users don't need access to our source account
+- **Trust & Security**: AWS-managed distribution channel with built-in security scanning
 
 ### **SAM Template Structure**
 ```
@@ -266,8 +275,8 @@ template.yaml                 # SAM template (AWS Marketplace standard)
 
 ### **Why SAM vs Traditional CloudFormation?**
 
-**SAM Benefits for AWS Marketplace:**
-- ✅ **Built-in Marketplace Support**: Native AWS Serverless Application Repository integration
+**SAM Benefits for AWS SAR Distribution:**
+- ✅ **Built-in SAR Support**: Native AWS Serverless Application Repository integration
 - ✅ **Simplified Lambda Packaging**: Automatic Go binary handling with `CodeUri`
 - ✅ **Local Testing**: `sam local` commands for development
 - ✅ **Template Validation**: Enhanced SAM-specific validation
@@ -277,7 +286,7 @@ template.yaml                 # SAM template (AWS Marketplace standard)
 **Traditional CloudFormation Limitations:**
 - ❌ Manual ZIP creation and S3 upload required
 - ❌ No built-in local testing
-- ❌ Manual marketplace integration
+- ❌ Manual SAR integration required
 - ❌ More complex Lambda configuration
 
 ## Contributing
@@ -296,10 +305,36 @@ make test
 # See development guide for more details
 ```
 
+## Professional Services & Enterprise Support
+
+Need help with enterprise-scale LogGuardian deployment? **ZSoftly Technologies Inc** provides comprehensive AWS consulting and implementation services.
+
+### **🌐 [ZSoftly Cloud Services](https://cloud.zsoftly.com/)**
+
+**Professional Services Include:**
+- ✅ **Enterprise Deployment Planning** - Multi-account, multi-region architecture design
+- ✅ **Custom Implementation** - Tailored compliance rules and integration with existing infrastructure  
+- ✅ **Migration Services** - Safe migration from manual processes to automated compliance
+- ✅ **Training & Knowledge Transfer** - Team training on LogGuardian operation and maintenance
+- ✅ **Ongoing Support** - 24/7 support for mission-critical deployments
+
+### **📞 Contact Information:**
+- **Phone:** +1 (343) 503-0513
+- **Email:** info@zsoftly.com
+- **Address:** 116 Albert Street, Suite 300, Ottawa, Ontario K1P 5G3
+- **Business Hours:** Mon–Fri: 6 AM–10 PM EST
+- **[📅 Book Online Consultation](https://cloud.zsoftly.com/)**
+
+**Why Choose ZSoftly for LogGuardian?**
+- 🇨🇦 **Canadian AWS Experts** - Deep expertise in AWS compliance and governance
+- 🏢 **Enterprise Focus** - Specialized in large-scale, regulated environments
+- 🔒 **Security First** - Compliance with Canadian and international security standards
+- 🚀 **Proven Results** - Successfully deployed across financial, healthcare, and government sectors
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Built with ❤️ by [ZSoftly Technologies Inc](https://zsoftly.com)**
+**Built with ❤️ by [ZSoftly Technologies Inc](https://zsoftly.com) | [Professional AWS Services](https://cloud.zsoftly.com/)**
