@@ -88,9 +88,10 @@ Parameters:
   # Lambda Configuration
   DefaultRetentionDays:
     Type: Number
+    Default: 1
     MinValue: 1
     MaxValue: 3653
-    Description: Default retention period for log groups in days
+    Description: Default retention period for log groups in days. Only log groups with no retention set will be remediated; any existing retention (1 day or more) is considered compliant and will be preserved.
 
   LambdaMemorySize:
     Type: Number
