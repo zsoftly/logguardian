@@ -65,7 +65,7 @@ func TestEvaluateRetentionCompliance(t *testing.T) {
 			retentionInDays:    aws.Int32(0),
 			minRetentionDays:   1,
 			expectedCompliance: "NON_COMPLIANT",
-			expectedAnnotation: "Retention period (0 days) below minimum requirement (1 days)",
+			expectedAnnotation: "Retention period (0 days) below minimum requirement (1 day)",
 		},
 		{
 			name:               "very high retention should be COMPLIANT",
