@@ -140,6 +140,20 @@ Parameters:
     Type: String
     Description: How this stack is managed (e.g., SAM, CloudFormation, Terraform)
 
+  # Custom Config Rule Configuration
+  UseCustomRetentionRule:
+    Type: String
+    Description: Use custom Lambda-based retention rule instead of AWS managed rule
+    AllowedValues: ["true", "false"]
+    Default: "true"
+
+  CustomRetentionRuleMemorySize:
+    Type: Number
+    MinValue: 128
+    MaxValue: 512
+    Default: 128
+    Description: Memory allocation for custom retention rule Lambda (MB)
+
 # Conditions for optional resource creation
 Conditions:
   # KMS Conditions
@@ -160,6 +174,9 @@ Conditions:
 
   # Tagging Conditions
   HasCustomerTagPrefix: !Not [!Equals [!Ref CustomerTagPrefix, ""]]
+
+  # Custom Config Rule Conditions
+  ShouldUseCustomRetentionRule: !Equals [!Ref UseCustomRetentionRule, "true"]
 
 # Global settings for Lambda function
 Globals:
@@ -309,6 +326,49 @@ Resources:
               Condition:
                 StringEquals:
                   "cloudwatch:namespace": "LogGuardian"
+
+  # Custom Config Rule Lambda Function
+  CustomRetentionRuleLambda:
+    Type: AWS::Serverless::Function
+    Condition: ShouldUseCustomRetentionRule
+    Properties:
+      FunctionName: !Sub "logguardian-custom-retention-rule-${Environment}"
+      CodeUri: build/
+      Handler: config-rule
+      Runtime: provided.al2023
+      MemorySize: !Ref CustomRetentionRuleMemorySize
+      Timeout: 60
+      Description: "Custom Config rule for LogGuardian retention compliance evaluation"
+      Environment:
+        Variables:
+          DEFAULT_RETENTION_DAYS: !Ref DefaultRetentionDays
+          LOG_LEVEL: INFO
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # Config permissions for putting evaluations
+            - Effect: Allow
+              Action:
+                - config:PutEvaluations
+              Resource: "*"
+      Tags:
+        Product: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, !Ref ProductName]
+        Owner: !Ref Owner
+        Environment: !Ref Environment
+        ManagedBy: !Ref ManagedBy
+        Application: LogGuardian
+        Component: CustomConfigRule
+        CreatedBy: "SAM-Template"
+
+  # Lambda permission for Config to invoke the custom rule
+  CustomRetentionRuleLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: ShouldUseCustomRetentionRule
+    Properties:
+      FunctionName: !Ref CustomRetentionRuleLambda
+      Action: lambda:InvokeFunction
+      Principal: config.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
 
   # Optional EventBridge Rules for Scheduled Execution
   EncryptionScheduleRule:
@@ -508,17 +568,27 @@ Resources:
   RetentionConfigRule:
     Type: AWS::Config::ConfigRule
     Condition: ShouldCreateConfigRules
-    DependsOn:
-      - ConfigurationRecorder
-      - DeliveryChannel
     Properties:
       ConfigRuleName: !Sub 
         - "${TagPrefix}-retention-${Environment}"
         - TagPrefix: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, "logguardian"]
-      Description: !Sub "Checks if CloudWatch log groups have retention policy set to at least ${DefaultRetentionDays} days"
-      Source:
-        Owner: AWS
-        SourceIdentifier: CW_LOGGROUP_RETENTION_PERIOD_CHECK
+      Description: !If 
+        - ShouldUseCustomRetentionRule
+        - !Sub "Custom rule: Checks if CloudWatch log groups have retention policy set (null=NON_COMPLIANT, minimum ${DefaultRetentionDays} days)"
+        - !Sub "AWS managed rule: Checks if CloudWatch log groups have retention policy set to at least ${DefaultRetentionDays} days"
+      Source: !If
+        - ShouldUseCustomRetentionRule
+        - Owner: AWS_LAMBDA
+          SourceIdentifier: !GetAtt CustomRetentionRuleLambda.Arn
+          SourceDetails:
+            - EventSource: aws.config
+              MessageType: ConfigurationItemChangeNotification
+              MaximumExecutionFrequency: TwentyFour_Hours
+            - EventSource: aws.config
+              MessageType: OversizedConfigurationItemChangeNotification
+              MaximumExecutionFrequency: TwentyFour_Hours
+        - Owner: AWS
+          SourceIdentifier: CW_LOGGROUP_RETENTION_PERIOD_CHECK
       InputParameters: !Sub |
         {
           "MinRetentionTime": "${DefaultRetentionDays}"
@@ -627,6 +697,20 @@ Outputs:
       - !Ref ExistingRetentionConfigRule
     Export:
       Name: !Sub "${AWS::StackName}-RetentionRule"
+
+  CustomRetentionConfigRuleName:
+    Condition: ShouldUseCustomRetentionRule
+    Description: Name of the custom Config rule for retention compliance
+    Value: !Ref RetentionConfigRule
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomRetentionRule"
+
+  CustomRetentionLambdaArn:
+    Condition: ShouldUseCustomRetentionRule
+    Description: ARN of the custom retention Lambda function
+    Value: !GetAtt CustomRetentionRuleLambda.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomRetentionLambdaArn"
 
   DashboardURL:
     Condition: CreateDashboard

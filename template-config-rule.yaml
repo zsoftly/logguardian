@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: LogGuardian-CustomConfigRule
+    Description: "Custom AWS Config rule for LogGuardian retention compliance evaluation"
+    Author: "ZSoftly Inc."
+    ReadmeUrl: README.md
+    LicenseUrl: LICENSE
+    Labels: ['config', 'compliance', 'retention', 'cloudwatch', 'logs', 'lambda']
+    HomePageUrl: https://github.com/zsoftly/logguardian
+    SourceCodeUrl: https://github.com/zsoftly/logguardian
+    SemanticVersion: 1.0.3
+
+Description: >
+  LogGuardian Custom Config Rule - Fixes AWS managed rule bug by correctly identifying 
+  log groups with null retention (infinite retention) as NON_COMPLIANT.
+
+Parameters:
+  Environment:
+    Type: String
+    Description: "Deployment environment"
+
+  ProductName:
+    Type: String
+    Default: "LogGuardian"
+    Description: "Product name for tagging"
+
+  Owner:
+    Type: String
+    Description: "Team or individual responsible for this deployment"
+
+  DefaultRetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 3653
+    Description: "Minimum required retention period in days"
+
+  CustomRetentionRuleMemorySize:
+    Type: Number
+    Default: 128
+    MinValue: 128
+    MaxValue: 1024
+    Description: "Custom Config rule Lambda memory size in MB"
+
+  ManagedBy:
+    Type: String
+    Description: "How this resource is managed"
+
+  EnableConfigService:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: "Whether to enable AWS Config service (required for Config rules to work)"
+
+  ConfigS3BucketName:
+    Type: String
+    Default: ""
+    Description: "S3 bucket name for Config delivery channel (leave empty for auto-generated)"
+
+Conditions:
+  ShouldEnableConfigService: !Equals [!Ref EnableConfigService, "true"]
+  HasCustomConfigBucket: !Not [!Equals [!Ref ConfigS3BucketName, ""]]
+
+Resources:
+  # S3 Bucket for AWS Config (if enabled)
+  ConfigS3Bucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldEnableConfigService
+    Properties:
+      BucketName: !If
+        - HasCustomConfigBucket
+        - !Ref ConfigS3BucketName
+        - !Sub "logguardian-config-${Environment}-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldConfigurations
+            Status: Enabled
+            ExpirationInDays: 90
+      Tags:
+        - Key: Product
+          Value: !Ref ProductName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: !Ref ManagedBy
+
+  # IAM Role for AWS Config Service
+  ConfigServiceRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldEnableConfigService
+    Properties:
+      RoleName: !Sub "LogGuardian-ConfigService-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWS_ConfigRole
+      Policies:
+        - PolicyName: ConfigS3DeliveryPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource: !GetAtt ConfigS3Bucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub "${ConfigS3Bucket.Arn}/*"
+
+  # AWS Config Delivery Channel
+  ConfigDeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Condition: ShouldEnableConfigService
+    Properties:
+      Name: !Sub "logguardian-delivery-${Environment}"
+      S3BucketName: !Ref ConfigS3Bucket
+
+  # AWS Config Configuration Recorder
+  ConfigurationRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Condition: ShouldEnableConfigService
+    Properties:
+      Name: !Sub "logguardian-recorder-${Environment}"
+      RoleARN: !GetAtt ConfigServiceRole.Arn
+      RecordingGroup:
+        AllSupported: false
+        IncludeGlobalResourceTypes: false
+        ResourceTypes:
+          - "AWS::Logs::LogGroup"
+
+  # Custom Config Rule Lambda Function
+  CustomRetentionRuleLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/logguardian-custom-retention-rule-${Environment}"
+      RetentionInDays: !Ref DefaultRetentionDays
+      Tags:
+        - Key: Product
+          Value: !Ref ProductName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: !Ref ManagedBy
+        - Key: Application
+          Value: LogGuardian-CustomRule
+        - Key: Component
+          Value: CloudWatchLogs
+
+  CustomRetentionRuleLambda:
+    Type: AWS::Serverless::Function
+    DependsOn: CustomRetentionRuleLambdaLogGroup
+    Properties:
+      FunctionName: !Sub "logguardian-custom-retention-rule-${Environment}"
+      CodeUri: build/config-rule/
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Architectures: [x86_64]
+      MemorySize: !Ref CustomRetentionRuleMemorySize
+      Timeout: 60
+      Description: "Custom Config rule for LogGuardian retention compliance evaluation"
+      Environment:
+        Variables:
+          DEFAULT_RETENTION_DAYS: !Ref DefaultRetentionDays
+          LOG_LEVEL: INFO
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # Config permissions for putting evaluations
+            - Effect: Allow
+              Action:
+                - config:PutEvaluations
+              Resource: "*"
+            # CloudWatch Logs permissions
+            - Effect: Allow
+              Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "${CustomRetentionRuleLambdaLogGroup.Arn}:*"
+      Tags:
+        Product: !Ref ProductName
+        Owner: !Ref Owner
+        Environment: !Ref Environment
+        ManagedBy: !Ref ManagedBy
+        Application: LogGuardian-CustomRule
+        Component: CustomConfigRule
+        CreatedBy: "SAM-Template"
+
+  # Lambda permission for Config to invoke the custom rule
+  CustomRetentionRuleLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CustomRetentionRuleLambda
+      Action: lambda:InvokeFunction
+      Principal: config.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+
+  # Custom Config Rule
+  CustomRetentionConfigRule:
+    Type: AWS::Config::ConfigRule
+    DependsOn: CustomRetentionRuleLambdaInvokePermission
+    Properties:
+      ConfigRuleName: !Sub "logguardian-custom-retention-${Environment}"
+      Description: "Custom retention compliance rule that correctly identifies null retention as NON_COMPLIANT"
+      Source:
+        Owner: CUSTOM_LAMBDA
+        SourceIdentifier: !GetAtt CustomRetentionRuleLambda.Arn
+        SourceDetails:
+          - EventSource: aws.config
+            MessageType: ConfigurationItemChangeNotification
+          - EventSource: aws.config
+            MessageType: OversizedConfigurationItemChangeNotification
+      InputParameters: !Sub |
+        {
+          "MinRetentionTime": "${DefaultRetentionDays}"
+        }
+      Scope:
+        ComplianceResourceTypes:
+          - "AWS::Logs::LogGroup"
+
+Outputs:
+  CustomRetentionConfigRuleName:
+    Description: Name of the custom Config rule for retention compliance
+    Value: !Ref CustomRetentionConfigRule
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomRetentionRule"
+
+  CustomRetentionLambdaArn:
+    Description: ARN of the custom retention Lambda function
+    Value: !GetAtt CustomRetentionRuleLambda.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomRetentionLambdaArn"
+
+  CustomRetentionLambdaName:
+    Description: Name of the custom retention Lambda function
+    Value: !Ref CustomRetentionRuleLambda
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomRetentionLambdaName"
+
+  CustomRetentionLambdaLogGroupName:
+    Description: Name of the custom retention Lambda log group
+    Value: !Ref CustomRetentionRuleLambdaLogGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomRetentionLambdaLogGroup"

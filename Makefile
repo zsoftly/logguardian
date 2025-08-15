@@ -18,25 +18,45 @@ all: clean build test package
 .PHONY: clean
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR) .aws-sam packaged-template.yaml coverage.out coverage.html
+	rm -rf $(BUILD_DIR) .aws-sam packaged-template*.yaml coverage.out coverage.html
+	rm -f logguardian-*-template.yaml *.zip response*.json test-*.json
 	go clean -cache -testcache
 
 # Build Lambda function binary for AWS
 .PHONY: build
 build:
-	@echo "Building Lambda function for AWS..."
+	@echo "Building LogGuardian Lambda function for AWS..."
+	mkdir -p $(BUILD_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
+		-ldflags="-s -w" \
+		-o $(BUILD_DIR)/$(BINARY_NAME) \
+		./cmd/lambda
+	@echo "Building Custom Config Rule Lambda function for AWS..."
+	mkdir -p $(BUILD_DIR)/config-rule
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
+		-ldflags="-s -w" \
+		-o $(BUILD_DIR)/config-rule/$(BINARY_NAME) \
+		./cmd/config-rule
+
+# Build main LogGuardian Lambda only
+.PHONY: build-main
+build-main:
+	@echo "Building main LogGuardian Lambda function for AWS..."
 	mkdir -p $(BUILD_DIR)
 	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
 		-ldflags="-s -w" \
 		-o $(BUILD_DIR)/$(BINARY_NAME) \
 		./cmd/lambda
 
-# Build for local development (current OS)
-.PHONY: dev-build
-dev-build:
-	@echo "Building for local development..."
-	mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME)-dev ./cmd/lambda
+# Build custom config rule Lambda only
+.PHONY: build-config-rule
+build-config-rule:
+	@echo "Building Custom Config Rule Lambda function for AWS..."
+	mkdir -p $(BUILD_DIR)/config-rule
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
+		-ldflags="-s -w" \
+		-o $(BUILD_DIR)/config-rule/$(BINARY_NAME) \
+		./cmd/config-rule
 
 # Run tests with coverage
 .PHONY: test
@@ -128,25 +148,77 @@ size: build
 
 # SAM package for AWS Serverless Application Repository
 .PHONY: package
-package: build
-	@echo "Validating SAM template..."
+package: package-main package-config-rule
+
+# Package main LogGuardian Lambda
+.PHONY: package-main
+package-main: build-main
+	@echo "Validating main LogGuardian SAM template..."
+	sam validate --template template-main.yaml --region ca-central-1
+	@echo "Packaging main LogGuardian for AWS Serverless Application Repository..."
+	sam package \
+		--template-file template-main.yaml \
+		--resolve-s3 \
+		--output-template-file packaged-template-main.yaml
+	@echo "✅ Main LogGuardian packaged: packaged-template-main.yaml"
+
+# Package custom config rule Lambda
+.PHONY: package-config-rule
+package-config-rule: build-config-rule
+	@echo "Validating custom config rule SAM template..."
+	sam validate --template template-config-rule.yaml --region ca-central-1
+	@echo "Packaging custom config rule for AWS Serverless Application Repository..."
+	sam package \
+		--template-file template-config-rule.yaml \
+		--resolve-s3 \
+		--output-template-file packaged-template-config-rule.yaml
+	@echo "✅ Custom config rule packaged: packaged-template-config-rule.yaml"
+
+# Package combined template (legacy)
+.PHONY: package-combined
+package-combined: build
+	@echo "Validating combined SAM template..."
 	sam validate --template template.yaml --region ca-central-1
-	@echo "Packaging for AWS Serverless Application Repository..."
+	@echo "Packaging combined template for AWS Serverless Application Repository..."
 	sam package \
 		--template-file template.yaml \
 		--resolve-s3 \
 		--output-template-file packaged-template.yaml
-	@echo "✅ Packaged template ready: packaged-template.yaml"
+	@echo "✅ Combined template packaged: packaged-template.yaml"
 
 # SAM publish to AWS Serverless Application Repository (public)
 .PHONY: publish
-publish: package
-	@echo "Publishing to AWS Serverless Application Repository..."
+publish: publish-main publish-config-rule
+
+# Publish main LogGuardian to SAR
+.PHONY: publish-main
+publish-main: package-main
+	@echo "Publishing main LogGuardian to AWS Serverless Application Repository..."
+	sam publish \
+		--template packaged-template-main.yaml \
+		--region ca-central-1 \
+		--semantic-version 1.0.3
+	@echo "✅ Main LogGuardian published to SAR"
+
+# Publish custom config rule to SAR
+.PHONY: publish-config-rule
+publish-config-rule: package-config-rule
+	@echo "Publishing custom config rule to AWS Serverless Application Repository..."
+	sam publish \
+		--template packaged-template-config-rule.yaml \
+		--region ca-central-1 \
+		--semantic-version 1.0.3
+	@echo "✅ Custom config rule published to SAR"
+
+# Publish combined template (legacy)
+.PHONY: publish-combined
+publish-combined: package-combined
+	@echo "Publishing combined template to AWS Serverless Application Repository..."
 	sam publish \
 		--template packaged-template.yaml \
 		--region ca-central-1 \
-		--semantic-version 1.0.2
-	@echo "✅ Application published to SAR"
+		--semantic-version 1.0.3
+	@echo "✅ Combined application published to SAR"
 
 # Make SAR application public
 .PHONY: publish-public
@@ -195,6 +267,7 @@ deploy-prod:
 			CreateConfigRules=true \
 			CreateEventBridgeRules=true \
 			CreateMonitoringDashboard=true \
+			UseCustomRetentionRule=true \
 			EncryptionScheduleExpression="cron(0 2 ? * SUN *)" \
 			RetentionScheduleExpression="cron(0 3 ? * SUN *)" \
 			ManagedBy=CloudFormation \
@@ -234,12 +307,139 @@ deploy-dev:
 			CreateConfigRules=true \
 			CreateEventBridgeRules=false \
 			CreateMonitoringDashboard=false \
+			UseCustomRetentionRule=true \
 			EncryptionScheduleExpression="cron(0 2 ? * SUN *)" \
 			RetentionScheduleExpression="cron(0 3 ? * SUN *)" \
 			ManagedBy=CloudFormation \
 		--capabilities CAPABILITY_NAMED_IAM \
 		--region ca-central-1 && \
 	echo "✅ DEVELOPMENT Deployment successful!"
+
+# === SEPARATE DEPLOYMENT TARGETS ===
+
+# Deploy main LogGuardian only to production
+.PHONY: deploy-main-prod
+deploy-main-prod:
+	@echo "Deploying main LogGuardian to PRODUCTION account..."
+	@echo "⚠️  WARNING: This will deploy main LogGuardian to your PRODUCTION environment!"
+	@read -p "Are you sure you want to deploy main LogGuardian to PRODUCTION? (y/N): " confirm && [ "$$confirm" = "y" ]
+	@echo "Step 1: Get main LogGuardian SAR template..."
+	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
+		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian-Main \
+		--semantic-version 1.0.3 \
+		--region ca-central-1 \
+		--query 'TemplateUrl' --output text) && \
+	echo "Template URL: $$TEMPLATE_URL" && \
+	echo "Step 2: Download template..." && \
+	wget -O logguardian-main-template.yaml "$$TEMPLATE_URL" && \
+	echo "Step 3: Deploy main LogGuardian to PRODUCTION..." && \
+	aws cloudformation deploy \
+		--template-file logguardian-main-template.yaml \
+		--stack-name logguardian-main-prod \
+		--parameter-overrides \
+			Environment=prod \
+			ProductName=LogGuardian-Main \
+			Owner=DevOps-Team \
+			KMSKeyAlias=alias/logguardian-prod \
+			DefaultRetentionDays=365 \
+			LambdaMemorySize=128 \
+			LambdaTimeout=30 \
+			ManagedBy=CloudFormation \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--region ca-central-1 && \
+	echo "✅ Main LogGuardian PRODUCTION Deployment successful!"
+
+# Deploy custom config rule only to production
+.PHONY: deploy-config-rule-prod
+deploy-config-rule-prod:
+	@echo "Deploying custom config rule to PRODUCTION account..."
+	@echo "⚠️  WARNING: This will deploy custom config rule to your PRODUCTION environment!"
+	@read -p "Are you sure you want to deploy custom config rule to PRODUCTION? (y/N): " confirm && [ "$$confirm" = "y" ]
+	@echo "Step 1: Get custom config rule SAR template..."
+	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
+		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian-CustomConfigRule \
+		--semantic-version 1.0.3 \
+		--region ca-central-1 \
+		--query 'TemplateUrl' --output text) && \
+	echo "Template URL: $$TEMPLATE_URL" && \
+	echo "Step 2: Download template..." && \
+	wget -O logguardian-config-rule-template.yaml "$$TEMPLATE_URL" && \
+	echo "Step 3: Deploy custom config rule to PRODUCTION..." && \
+	aws cloudformation deploy \
+		--template-file logguardian-config-rule-template.yaml \
+		--stack-name logguardian-config-rule-prod \
+		--parameter-overrides \
+			Environment=prod \
+			ProductName=LogGuardian-CustomRule \
+			Owner=DevOps-Team \
+			DefaultRetentionDays=30 \
+			CustomRetentionRuleMemorySize=128 \
+			ManagedBy=CloudFormation \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--region ca-central-1 && \
+	echo "✅ Custom config rule PRODUCTION Deployment successful!"
+
+# Deploy both main and config rule to production
+.PHONY: deploy-separate-prod
+deploy-separate-prod: deploy-main-prod deploy-config-rule-prod
+	@echo "✅ Both main LogGuardian and custom config rule deployed to PRODUCTION!"
+
+# Deploy main LogGuardian only to development
+.PHONY: deploy-main-dev
+deploy-main-dev:
+	@echo "Deploying main LogGuardian to DEVELOPMENT account..."
+	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
+		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian-Main \
+		--semantic-version 1.0.3 \
+		--region ca-central-1 \
+		--query 'TemplateUrl' --output text) && \
+	echo "Template URL: $$TEMPLATE_URL" && \
+	wget -O logguardian-main-template.yaml "$$TEMPLATE_URL" && \
+	aws cloudformation deploy \
+		--template-file logguardian-main-template.yaml \
+		--stack-name logguardian-main-dev \
+		--parameter-overrides \
+			Environment=dev \
+			ProductName=LogGuardian-Main-Dev \
+			Owner=DevOps-Team \
+			KMSKeyAlias=alias/logguardian-dev \
+			DefaultRetentionDays=90 \
+			LambdaMemorySize=128 \
+			LambdaTimeout=30 \
+			ManagedBy=CloudFormation \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--region ca-central-1 && \
+	echo "✅ Main LogGuardian DEVELOPMENT Deployment successful!"
+
+# Deploy custom config rule only to development
+.PHONY: deploy-config-rule-dev
+deploy-config-rule-dev:
+	@echo "Deploying custom config rule to DEVELOPMENT account..."
+	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
+		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian-CustomConfigRule \
+		--semantic-version 1.0.3 \
+		--region ca-central-1 \
+		--query 'TemplateUrl' --output text) && \
+	echo "Template URL: $$TEMPLATE_URL" && \
+	wget -O logguardian-config-rule-template.yaml "$$TEMPLATE_URL" && \
+	aws cloudformation deploy \
+		--template-file logguardian-config-rule-template.yaml \
+		--stack-name logguardian-config-rule-dev \
+		--parameter-overrides \
+			Environment=dev \
+			ProductName=LogGuardian-CustomRule-Dev \
+			Owner=DevOps-Team \
+			DefaultRetentionDays=30 \
+			CustomRetentionRuleMemorySize=128 \
+			ManagedBy=CloudFormation \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--region ca-central-1 && \
+	echo "✅ Custom config rule DEVELOPMENT Deployment successful!"
+
+# Deploy both main and config rule to development
+.PHONY: deploy-separate-dev
+deploy-separate-dev: deploy-main-dev deploy-config-rule-dev
+	@echo "✅ Both main LogGuardian and custom config rule deployed to DEVELOPMENT!"
 
 # Clean up development deployment
 .PHONY: cleanup-dev
@@ -267,16 +467,14 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  all              - Clean, build, test, package"
-	@echo "  build            - Build Lambda binary for AWS"
-	@echo "  dev-build        - Build for local development"
+	@echo "  build            - Build both Lambda functions"
+	@echo "  build-main       - Build main LogGuardian Lambda only"
+	@echo "  build-config-rule - Build custom config rule Lambda only"
+	@echo "  dev-build        - Build both for local development"
 	@echo "  test             - Run tests with coverage"
 	@echo "  bench            - Run benchmarks"
 	@echo "  check            - Format, lint, vet, security scan"
 	@echo "  clean            - Clean all build artifacts"
-	@echo "  tidy             - Tidy dependencies"
-	@echo "  deps             - Download dependencies"
-	@echo "  install-tools    - Install development tools"
-	@echo "  size             - Show binary size analysis"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  fmt              - Format code"
@@ -285,11 +483,31 @@ help:
 	@echo "  security         - Security scan with gosec"
 	@echo "  vuln-check       - Check for vulnerabilities"
 	@echo ""
-	@echo "Production:"
-	@echo "  package          - Package for AWS SAR"
-	@echo "  publish          - Publish to AWS SAR (public)"
-	@echo "  deploy-prod      - Deploy to PRODUCTION account"
-	@echo "  deploy-dev       - Deploy to DEVELOPMENT account"
+	@echo "Packaging:"
+	@echo "  package          - Package both applications"
+	@echo "  package-main     - Package main LogGuardian only"
+	@echo "  package-config-rule - Package custom config rule only"
+	@echo "  package-combined - Package legacy combined template"
+	@echo ""
+	@echo "Publishing:"
+	@echo "  publish          - Publish both to AWS SAR"
+	@echo "  publish-main     - Publish main LogGuardian to SAR"
+	@echo "  publish-config-rule - Publish custom config rule to SAR"
+	@echo "  publish-combined - Publish legacy combined template"
+	@echo ""
+	@echo "Combined Deployment (Legacy):"
+	@echo "  deploy-prod      - Deploy combined template to PRODUCTION"
+	@echo "  deploy-dev       - Deploy combined template to DEVELOPMENT"
+	@echo ""
+	@echo "Separate Deployment (Recommended):"
+	@echo "  deploy-separate-prod     - Deploy both separately to PRODUCTION"
+	@echo "  deploy-separate-dev      - Deploy both separately to DEVELOPMENT"
+	@echo "  deploy-main-prod         - Deploy main LogGuardian to PRODUCTION"
+	@echo "  deploy-main-dev          - Deploy main LogGuardian to DEVELOPMENT"
+	@echo "  deploy-config-rule-prod  - Deploy custom config rule to PRODUCTION"
+	@echo "  deploy-config-rule-dev   - Deploy custom config rule to DEVELOPMENT"
+	@echo ""
+	@echo "Cleanup:"
 	@echo "  cleanup-prod     - Clean up PRODUCTION deployment"
 	@echo "  cleanup-dev      - Clean up DEVELOPMENT deployment"
 	@echo ""
