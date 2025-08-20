@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.26.1
 	github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.48.0
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.29.0
-	github.com/aws/aws-sdk-go-v2/service/kms v1.27.0
+	github.com/aws/aws-sdk-go-v2/service/kms v1.44.0
 	github.com/stretchr/testify v1.7.2
 )
 
