@@ -29,8 +29,7 @@ Batch processing requests to evaluate non-compliant resources:
 {
   "type": "config-rule-evaluation",
   "configRuleName": "logguardian-encryption-dev",
-  "region": "ca-central-1",
-  "batchSize": 10
+  "region": "ca-central-1"
 }
 ```
 **Test with**: `make sam-local-invoke`
@@ -39,21 +38,19 @@ Batch processing requests to evaluate non-compliant resources:
 ```json
 {
   "type": "config-rule-evaluation", 
-  "configRuleName": "logguardian-retention-dev",
-  "batchSize": 15
+  "configRuleName": "logguardian-retention-dev"
 }
 ```
 **Test with**: `make sam-local-invoke-retention`
 
-**Large Batch Evaluation** (`testdata/large-batch-evaluation-event.json`):
+**Large Scale Evaluation** (`testdata/large-scale-evaluation-event.json`):
 ```json
 {
   "type": "config-rule-evaluation",
-  "configRuleName": "logguardian-encryption-prod",
-  "batchSize": 50
+  "configRuleName": "logguardian-encryption-prod"
 }
 ```
-**Test with**: `make sam-local-invoke-large-batch`
+**Test with**: `make sam-local-invoke-large-scale`
 
 ### 2. Individual Config Events
 Individual Config resource change notifications:
@@ -114,7 +111,7 @@ make sam-test-errors        # Test error handling
 # Config rule evaluation events
 make sam-local-invoke           # Encryption rule evaluation
 make sam-local-invoke-retention # Retention rule evaluation  
-make sam-local-invoke-large-batch # Large batch processing
+make sam-local-invoke-large-scale  # Large scale processing
 
 # Individual config events
 make sam-local-invoke-config    # Missing encryption
@@ -154,8 +151,7 @@ Local testing uses `env.json` with these variables:
     "DEFAULT_RETENTION_DAYS": "365", 
     "ENVIRONMENT": "dev",
     "LOG_LEVEL": "DEBUG",
-    "DRY_RUN": "true",
-    "BATCH_LIMIT": "10"
+    "DRY_RUN": "true"
   }
 }
 ```

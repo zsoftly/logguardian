@@ -66,7 +66,7 @@ Both options work seamlessly with LogGuardian's automation engine.
 ## Documentation & Support
 
 **📚 Comprehensive Documentation:**
-- **[Architecture & Workflow](https://github.com/zsoftly/logguardian/blob/main/docs/architecture-diagrams.md)** - Mermaid diagrams showing how LogGuardian works
+- **[Architecture Overview](https://github.com/zsoftly/logguardian/blob/main/docs/architecture-overview.md)** - System design and visual diagrams showing how LogGuardian works
 - **[Configuration Parameters](https://github.com/zsoftly/logguardian/blob/main/docs/configuration-parameters.md)** - Complete parameter guide with enterprise examples
 - **[Deployment Examples](https://github.com/zsoftly/logguardian/blob/main/docs/deployment-examples.md)** - AWS CLI, CloudFormation, and Terraform examples
 - **[Full Documentation](https://github.com/zsoftly/logguardian)** - Complete project documentation

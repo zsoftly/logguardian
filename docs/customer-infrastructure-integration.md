@@ -261,7 +261,7 @@ sam deploy --template-file template.yaml \
         {
           "Id": "1",
           "Arn": "arn:aws:lambda:region:account:function:logguardian-compliance-prod",
-          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"customer-existing-encryption-rule\",\"region\":\"ca-central-1\",\"batchSize\":25}"
+          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"customer-existing-encryption-rule\",\"region\":\"ca-central-1\"}"
         }
       ]
     }
@@ -299,7 +299,6 @@ type CustomerConfigEvent struct {
     CustomerKMSKeyArn   string `json:"customerKmsKeyArn,omitempty"`   // Customer's KMS key
     ProductName         string `json:"productName,omitempty"`         // Product name for tagging
     Region              string `json:"region,omitempty"`
-    BatchSize           int    `json:"batchSize,omitempty"`
 }
 
 // Handle customer-specific configuration

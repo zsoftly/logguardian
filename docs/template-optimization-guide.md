@@ -159,8 +159,7 @@ aws lambda invoke --function-name logguardian-compliance-prod \
     "configRuleName": "customer-encryption-rule",
     "region": "ca-central-1",
     "account": "123456789012",
-    "environment": "prod",
-    "batchSize": 20
+    "environment": "prod"
   }' response.json --region ca-central-1
 ```
 
