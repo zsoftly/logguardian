@@ -4,7 +4,7 @@ This document describes the release process for LogGuardian.
 
 ## Prerequisites
 
-- AWS CLI configured with `logprod` profile for SAR publishing
+- AWS CLI configured with access to both dev and prod accounts
 - GitHub CLI (`gh`) installed for creating releases
 - Go 1.24+ installed
 - SAM CLI installed
@@ -61,38 +61,19 @@ git commit -m "chore: Release version X.Y.Z
 Brief description of changes"
 ```
 
-### 5. Push Release Branch and Create PR
+### 5. Push Release Branch
 
 ```bash
 # Push the release branch
 git push origin release/X.Y.Z
 ```
 
-Create a Pull Request to main using either:
-- GitHub UI (github.com)
-- GitHub CLI (`gh pr create`)
+### 6. Create and Push Tag from Release Branch
 
-Include in the PR description:
-- List of major changes
-- Any breaking changes
-- Referenced issues
-- Confirmation that tests pass and build succeeds
-
-### 6. Merge PR
-
-After review and approval:
-- Merge the PR to main (via GitHub UI or CLI)
-- **Note:** Keep the release branch for historical reference (do NOT delete)
-
-### 7. Create and Push Tag from Main
-
-After PR is merged, create the tag from main:
+While still on the release branch, create and push the tag:
 
 ```bash
-# Switch to main and pull latest
-git checkout main
-git pull origin main
-
+# Still on release/X.Y.Z branch
 # Create and push tag (MUST start with 'v' to trigger release pipeline)
 git tag -a vX.Y.Z -m "Release version X.Y.Z
 
@@ -106,23 +87,59 @@ git push origin vX.Y.Z
 **IMPORTANT:** 
 - Tags MUST start with 'v' (e.g., `v1.2.0`) to trigger the release pipeline
 - The tag push automatically triggers GitHub Actions to create a release with artifacts
+- Tag is created from the release branch, NOT from main
 
-### 8. Publish to AWS SAR
+### 7. Publish to AWS SAR
 
-From the main branch with the merged release:
+From the release branch, first deploy to dev for testing, then to prod:
 
 ```bash
-# Ensure you're on main with latest changes
-git checkout main
-git pull origin main
+# Still on release/X.Y.Z branch
 
-# Publish to SAR
-export AWS_PROFILE=logprod
-export AWS_DEFAULT_REGION=ca-central-1
+# First authenticate to dev account and deploy for testing
+# Set your AWS credentials for the dev account
+make publish
+
+# Test the application in dev account
+# Verify functionality and configuration
+
+# If all tests pass, authenticate to prod account where public SAR is located
+# Set your AWS credentials for the prod account
 make publish
 ```
 
-### 9. Verify Release
+### 8. Create PR to Main
+
+After the release is complete (tag pushed, SAR published), create a Pull Request to main:
+
+```bash
+# Create PR using GitHub CLI
+gh pr create --title "Release vX.Y.Z" --body "## Summary
+- Release vX.Y.Z completed
+- Tag already created and pushed
+- SAR application already published
+- GitHub Actions release pipeline completed
+
+## Changes
+- List of major changes
+- Any breaking changes
+- Referenced issues
+
+## Release Artifacts
+- GitHub Release: Created via automated pipeline
+- SAR Application: Published to production"
+```
+
+Or use GitHub UI (github.com) to create the PR.
+
+### 9. Merge PR
+
+After review and approval:
+- Merge the PR to main (via GitHub UI or CLI)
+- **Note:** Keep the release branch for historical reference (do NOT delete)
+- This merge brings the version changes to main for consistency
+
+### 10. Verify Release
 
 - Check GitHub Actions for successful release pipeline
 - Verify GitHub release was created with artifacts
@@ -166,17 +183,21 @@ git add -A
 git commit -m "chore: Release version 1.2.0"
 git push origin release/1.2.0
 
-# 4. Create PR (via GitHub UI or CLI)
-# 5. Wait for review and merge
-
-# 6. After PR is merged, tag from main (MUST have 'v' prefix)
-git checkout main && git pull origin main
+# 4. Create and push tag from release branch (MUST have 'v' prefix)
+# Still on release/1.2.0 branch
 git tag -a v1.2.0 -m "Release version 1.2.0"
 git push origin v1.2.0  # This triggers the release pipeline
 
-# 7. Publish to SAR
-export AWS_PROFILE=logprod
+# 5. Publish to SAR from release branch
+# First authenticate to dev account and test
 make publish
+# Verify in dev account, then authenticate to prod account
+make publish
+
+# 6. Create PR to main (after release is complete)
+gh pr create --title "Release v1.2.0" --body "Release completed"
+
+# 7. Wait for review and merge to main
 
 # Note: Release branches are kept for historical reference - do NOT delete
 ```

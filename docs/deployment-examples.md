@@ -65,34 +65,34 @@ aws cloudformation deploy \
 ```
 
 ## Terraform Integration
-
+> ### WARNING: These terraform configurations are provided as examples and are pending production validation.
 ### Using SAR Application
 ```hcl
 resource "aws_cloudformation_stack" "logguardian" {
   name = "logguardian"
-  
+
   template_url = "https://s3.amazonaws.com/aws-sam-cli-managed-default-samclisourcebucket-xxx/logguardian-template.yaml"
-  
+
   parameters = {
-    Environment                    = "prod"
+    Environment                   = "prod"
     ProductName                   = "TerraformCorp-LogGuardian"
-    Owner                        = "Platform-Engineering"
-    ManagedBy                    = "Terraform"
-    CreateKMSKey                 = "false"
-    ExistingKMSKeyArn           = aws_kms_key.logs.arn
-    KMSKeyAlias                 = aws_kms_alias.logs.name
-    CreateConfigService         = "false"
-    ExistingConfigBucket        = aws_s3_bucket.config.bucket
-    ExistingConfigServiceRoleArn = aws_iam_role.config.arn
-    DefaultRetentionDays        = "365"
-    LambdaMemorySize           = "512"
-    CreateEventBridgeRules     = "true"
-    EncryptionScheduleExpression = "cron(0 2 ? * SUN *)"
-    RetentionScheduleExpression  = "cron(0 3 ? * SUN *)"
+    Owner                         = "Platform-Engineering"
+    ManagedBy                     = "Terraform"
+    CreateKMSKey                  = "false"
+    ExistingKMSKeyArn             = aws_kms_key.logs.arn
+    KMSKeyAlias                   = aws_kms_alias.logs.name
+    CreateConfigService           = "false"
+    ExistingConfigBucket          = aws_s3_bucket.config.bucket
+    ExistingConfigServiceRoleArn  = aws_iam_role.config.arn
+    DefaultRetentionDays          = "365"
+    LambdaMemorySize              = "512"
+    CreateEventBridgeRules        = "true"
+    EncryptionScheduleExpression  = "cron(0 2 ? * SUN *)"
+    RetentionScheduleExpression   = "cron(0 3 ? * SUN *)"
   }
-  
+
   capabilities = ["CAPABILITY_NAMED_IAM"]
-  
+
   tags = {
     Environment = "prod"
     ManagedBy   = "Terraform"
@@ -122,20 +122,20 @@ resource "aws_s3_bucket" "config" {
 # LogGuardian deployment
 resource "aws_cloudformation_stack" "logguardian" {
   name = "logguardian"
-  
+
   template_url = "https://s3.amazonaws.com/aws-sam-cli-managed-default-samclisourcebucket-xxx/logguardian-template.yaml"
-  
+
   parameters = {
-    Environment                    = "prod"
-    CreateKMSKey                  = "false"
-    ExistingKMSKeyArn            = aws_kms_key.logs.arn
-    CreateConfigService          = "false"
-    ExistingConfigBucket         = aws_s3_bucket.config.bucket
-    DefaultRetentionDays         = "365"
+    Environment          = "prod"
+    CreateKMSKey         = "false"
+    ExistingKMSKeyArn    = aws_kms_key.logs.arn
+    CreateConfigService  = "false"
+    ExistingConfigBucket = aws_s3_bucket.config.bucket
+    DefaultRetentionDays = "365"
   }
-  
+
   capabilities = ["CAPABILITY_NAMED_IAM"]
-  
+
   depends_on = [
     aws_kms_key.logs,
     aws_s3_bucket.config
