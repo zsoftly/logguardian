@@ -42,8 +42,27 @@ aws cloudformation deploy \
 - **Enterprise Ready**: Supports existing infrastructure and custom policies
 - **Multi-Region**: Deploy across multiple AWS regions
 - **Monitoring**: CloudWatch metrics and dashboards
+- **Enhanced Config Rules**: Supports both AWS managed rules and improved custom alternatives
 
 **Configuration**: See [Parameter Guide](https://github.com/zsoftly/logguardian/blob/main/docs/configuration-parameters.md) for all deployment options
+
+## Config Rule Options
+
+LogGuardian supports both AWS managed Config rules and enhanced custom alternatives:
+
+### Retention Policy Monitoring
+
+**🚀 Recommended: [Custom CloudWatch LogGroup Retention Monitor](https://serverlessrepo.aws.amazon.com/applications/ca-central-1/410129828371/CloudWatch-LogGroup-Retention-Monitor)**
+- Addresses AWS managed rule limitations (permission issues, configuration conflicts)
+- Enhanced error handling and validation
+- Optimized for enterprise environments
+
+**Alternative: AWS Managed Rule** (`CW_LOGGROUP_RETENTION_PERIOD_CHECK`)
+- Standard AWS Config rule
+- May experience limitations in complex environments
+- Still fully supported if preferred
+
+Both options work seamlessly with LogGuardian's automation engine.
 
 ## Documentation & Support
 

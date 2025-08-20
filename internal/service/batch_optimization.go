@@ -291,6 +291,20 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 		"performance_improvement", "eliminated_repeated_kms_validation",
 		"audit_action", "batch_remediation_complete")
 
+	// Publish metrics to CloudWatch
+	if s.metricsService != nil {
+		metrics := MetricsData{
+			LogGroupsProcessed:  result.TotalProcessed,
+			LogGroupsRemediated: result.SuccessCount,
+			RemediationErrors:   result.FailureCount,
+		}
+
+		if err := s.metricsService.PublishBatchMetrics(ctx, metrics); err != nil {
+			// Log error but don't fail the operation
+			slog.Warn("Failed to publish batch metrics", "error", err)
+		}
+	}
+
 	return result, nil
 }
 

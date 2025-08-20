@@ -12,7 +12,7 @@ Metadata:
     ReadmeUrl: README-SAR.md
     Labels: ['cloudwatch', 'compliance', 'security', 'kms', 'logs']
     HomePageUrl: https://github.com/zsoftly/logguardian
-    SemanticVersion: 1.0.2
+    SemanticVersion: 1.0.6
     SourceCodeUrl: https://github.com/zsoftly/logguardian
 
 Parameters:
@@ -53,21 +53,28 @@ Parameters:
     Default: ""
     Description: ARN of existing Config service role (required if CreateConfigService=false)
 
-  # Config Rules Configuration - Optional
-  CreateConfigRules:
+  # Config Rules Configuration - Optional (Independent Control)
+  CreateEncryptionConfigRule:
     Type: String
-    Description: Create new Config rules or use existing ones
+    Description: Create new encryption Config rule or use existing one
     AllowedValues: ["true", "false"]
 
   ExistingEncryptionConfigRule:
     Type: String
     Default: ""
-    Description: Name of existing encryption Config rule (required if CreateConfigRules=false)
+    Description: "Name of existing encryption Config rule - provide the actual Config rule name (e.g., 'cw-lg-encryption-prod'), not ARN. This ensures EventBridge passes the correct rule name to Lambda for processing (required if CreateEncryptionConfigRule=false)"
+    AllowedPattern: "^$|^[a-zA-Z0-9._-]+$"
+
+  CreateRetentionConfigRule:
+    Type: String
+    Description: Create new retention Config rule or use existing one
+    AllowedValues: ["true", "false"]
 
   ExistingRetentionConfigRule:
     Type: String
     Default: ""
-    Description: Name of existing retention Config rule (required if CreateConfigRules=false)
+    Description: "Name of existing retention Config rule - provide the actual Config rule name (e.g., 'cw-lg-retention-min-prod'), not ARN. This ensures EventBridge passes the correct rule name to Lambda for processing (required if CreateRetentionConfigRule=false)"
+    AllowedPattern: "^$|^[a-zA-Z0-9._-]+$"
 
   # EventBridge Scheduling - Optional
   CreateEventBridgeRules:
@@ -148,8 +155,9 @@ Conditions:
   # Config Service Conditions
   ShouldCreateConfigService: !Equals [!Ref CreateConfigService, "true"]
 
-  # Config Rules Conditions
-  ShouldCreateConfigRules: !Equals [!Ref CreateConfigRules, "true"]
+  # Config Rules Conditions (Separate Control)
+  ShouldCreateEncryptionConfigRule: !Equals [!Ref CreateEncryptionConfigRule, "true"]
+  ShouldCreateRetentionConfigRule: !Equals [!Ref CreateRetentionConfigRule, "true"]
 
   # EventBridge Conditions
   ShouldCreateEventBridgeRules: !Equals [!Ref CreateEventBridgeRules, "true"]
@@ -181,13 +189,13 @@ Globals:
         LOG_LEVEL: INFO
         DRY_RUN: 'false'
         BATCH_LIMIT: '100'
-        # Dynamic Config rule names
+        # Dynamic Config rule names (Independent Control)
         ENCRYPTION_CONFIG_RULE: !If
-          - ShouldCreateConfigRules
+          - ShouldCreateEncryptionConfigRule
           - !Ref EncryptionConfigRule
           - !Ref ExistingEncryptionConfigRule
         RETENTION_CONFIG_RULE: !If
-          - ShouldCreateConfigRules
+          - ShouldCreateRetentionConfigRule
           - !Ref RetentionConfigRule
           - !Ref ExistingRetentionConfigRule
     Tags:
@@ -332,7 +340,7 @@ Resources:
                 "environment": "${Environment}",
                 "batchSize": 20
               }
-            - ConfigRuleName: !If [ShouldCreateConfigRules, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]
+            - ConfigRuleName: !If [ShouldCreateEncryptionConfigRule, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]
 
   RetentionScheduleRule:
     Type: AWS::Events::Rule
@@ -355,7 +363,7 @@ Resources:
                 "environment": "${Environment}",
                 "batchSize": 20
               }
-            - ConfigRuleName: !If [ShouldCreateConfigRules, !Ref RetentionConfigRule, !Ref ExistingRetentionConfigRule]
+            - ConfigRuleName: !If [ShouldCreateRetentionConfigRule, !Ref RetentionConfigRule, !Ref ExistingRetentionConfigRule]
 
   # Lambda permissions for EventBridge to invoke the function
   LambdaInvokePermissionEncryption:
@@ -485,10 +493,10 @@ Resources:
       Name: !Sub 'LogGuardian-DeliveryChannel-${Environment}'
       S3BucketName: !Ref ConfigBucket
 
-  # Optional Config Rules
+  # Optional Config Rules (Independent Control)
   EncryptionConfigRule:
     Type: AWS::Config::ConfigRule
-    Condition: ShouldCreateConfigRules
+    Condition: ShouldCreateEncryptionConfigRule
     DependsOn:
       - ConfigurationRecorder
       - DeliveryChannel
@@ -507,7 +515,7 @@ Resources:
 
   RetentionConfigRule:
     Type: AWS::Config::ConfigRule
-    Condition: ShouldCreateConfigRules
+    Condition: ShouldCreateRetentionConfigRule
     DependsOn:
       - ConfigurationRecorder
       - DeliveryChannel
@@ -613,7 +621,7 @@ Outputs:
   EncryptionConfigRuleName:
     Description: Name of the Config rule for encryption compliance
     Value: !If 
-      - ShouldCreateConfigRules
+      - ShouldCreateEncryptionConfigRule
       - !Ref EncryptionConfigRule
       - !Ref ExistingEncryptionConfigRule
     Export:
@@ -622,7 +630,7 @@ Outputs:
   RetentionConfigRuleName:
     Description: Name of the Config rule for retention compliance
     Value: !If 
-      - ShouldCreateConfigRules
+      - ShouldCreateRetentionConfigRule
       - !Ref RetentionConfigRule
       - !Ref ExistingRetentionConfigRule
     Export:
@@ -648,7 +656,10 @@ Outputs:
         Dashboard: ${DashboardStatus}
       - KMSStatus: !If [ShouldCreateKMSKey, "Created", "Using Existing"]
         ConfigStatus: !If [ShouldCreateConfigService, "Created", "Using Existing"]
-        RulesStatus: !If [ShouldCreateConfigRules, "Created", "Using Existing"]
+        RulesStatus: !Sub
+          - "Encryption: ${EncryptionStatus}, Retention: ${RetentionStatus}"
+          - EncryptionStatus: !If [ShouldCreateEncryptionConfigRule, "Created", "Using Existing"]
+            RetentionStatus: !If [ShouldCreateRetentionConfigRule, "Created", "Using Existing"]
         EventsStatus: !If [ShouldCreateEventBridgeRules, "Created", "Disabled"]
         DashboardStatus: !If [CreateDashboard, "Created", "Disabled"]
 
@@ -664,4 +675,4 @@ Outputs:
           "environment": "${Environment}",
           "batchSize": 20
         }' response.json --region ${AWS::Region}
-      - ConfigRuleName: !If [ShouldCreateConfigRules, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]
+      - ConfigRuleName: !If [ShouldCreateEncryptionConfigRule, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]

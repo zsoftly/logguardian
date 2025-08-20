@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	cloudwatchtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	cloudwatchlogstypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
@@ -66,6 +67,7 @@ type ComplianceService struct {
 	configClient      ConfigServiceClientInterface
 	configEvalService *ConfigEvaluationService
 	ruleClassifier    *types.RuleClassifier
+	metricsService    *MetricsService
 	config            ServiceConfig
 }
 
@@ -107,6 +109,7 @@ func NewComplianceService(cfg aws.Config) *ComplianceService {
 		configClient:      configservice.NewFromConfig(cfg),
 		configEvalService: NewConfigEvaluationService(cfg),
 		ruleClassifier:    types.NewRuleClassifier(),
+		metricsService:    NewMetricsService(cfg),
 		config:            config,
 	}
 }
@@ -129,6 +132,14 @@ func (s *ComplianceService) RemediateLogGroup(ctx context.Context, compliance ty
 		if err := s.applyEncryption(ctx, compliance.LogGroupName); err != nil {
 			result.Success = false
 			result.Error = fmt.Errorf("failed to apply encryption: %w", err)
+
+			// Publish error metric
+			if s.metricsService != nil {
+				if err := s.metricsService.PublishSingleMetric(ctx, "RemediationErrors", 1, cloudwatchtypes.StandardUnitCount); err != nil {
+					slog.Warn("Failed to publish error metric", "error", err)
+				}
+			}
+
 			return result, err
 		}
 		result.EncryptionApplied = true
@@ -140,12 +151,40 @@ func (s *ComplianceService) RemediateLogGroup(ctx context.Context, compliance ty
 		if err := s.applyRetentionPolicy(ctx, compliance.LogGroupName); err != nil {
 			result.Success = false
 			result.Error = fmt.Errorf("failed to apply retention policy: %w", err)
+
+			// Publish error metric
+			if s.metricsService != nil {
+				if err := s.metricsService.PublishSingleMetric(ctx, "RemediationErrors", 1, cloudwatchtypes.StandardUnitCount); err != nil {
+					slog.Warn("Failed to publish error metric", "error", err)
+				}
+			}
+
 			return result, err
 		}
 		result.RetentionApplied = true
 		slog.Info("Applied retention policy",
 			"log_group", compliance.LogGroupName,
 			"retention_days", s.config.DefaultRetentionDays)
+	}
+
+	// Publish success metrics
+	if s.metricsService != nil {
+		metrics := MetricsData{
+			LogGroupsProcessed:  1,
+			LogGroupsRemediated: 0,
+			RemediationErrors:   0,
+		}
+
+		if result.Success {
+			metrics.LogGroupsRemediated = 1
+		} else {
+			metrics.RemediationErrors = 1
+		}
+
+		if err := s.metricsService.PublishBatchMetrics(ctx, metrics); err != nil {
+			// Log error but don't fail the operation
+			slog.Warn("Failed to publish single remediation metrics", "error", err)
+		}
 	}
 
 	return result, nil
