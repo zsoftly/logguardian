@@ -52,7 +52,6 @@ sam deploy --template-file template.yaml \
     CreateMonitoringDashboard=false \
     DefaultRetentionDays=2555 \
     LambdaMemorySize=512 \
-    CustomerTagPrefix=ACME-LogGuardian \
     Owner=ACME-Security-Team \
   --region ca-central-1 \
   --capabilities CAPABILITY_NAMED_IAM
@@ -80,7 +79,6 @@ sam deploy --template-file template.yaml \
     CreateMonitoringDashboard=false \
     DefaultRetentionDays=1825 \
     LambdaMemorySize=256 \
-    CustomerTagPrefix=GlobalBank-Compliance \
     Owner=GlobalBank-CloudOps \
   --region ca-central-1 \
   --capabilities CAPABILITY_NAMED_IAM
@@ -160,7 +158,6 @@ sam deploy --template-file template.yaml \
     CreateMonitoringDashboard=true \
     DefaultRetentionDays=365 \
     LambdaMemorySize=256 \
-    CustomerTagPrefix=Organization-LogGuardian \
     Owner=Enterprise-Compliance \
   --region ca-central-1 \
   --capabilities CAPABILITY_NAMED_IAM
@@ -181,7 +178,6 @@ sam deploy --template-file template.yaml \
     CreateEventBridgeRules=true \
     DefaultRetentionDays=2555 \
     S3ExpirationDays=2555 \
-    CustomerTagPrefix=SOX-LogGuardian \
     Owner=SOX-Compliance-Team \
   --region us-east-1 \
   --capabilities CAPABILITY_NAMED_IAM
@@ -200,7 +196,6 @@ sam deploy --template-file template.yaml \
     CreateEventBridgeRules=true \
     DefaultRetentionDays=2190 \
     S3ExpirationDays=2190 \
-    CustomerTagPrefix=GDPR-LogGuardian \
     Owner=GDPR-Compliance-Team \
   --region eu-west-1 \
   --capabilities CAPABILITY_NAMED_IAM
@@ -258,7 +253,6 @@ cat test-response.json | jq '.'
 | `CreateMonitoringDashboard` | Yes | `false` | Create CloudWatch dashboard |
 | `DefaultRetentionDays` | Yes | `30` | Default log retention period |
 | `LambdaMemorySize` | Yes | `256` | Lambda memory allocation |
-| `CustomerTagPrefix` | No | `""` | Customer-specific tag prefix |
 | `Owner` | Yes | `ZSoftly` | Resource owner tag |
 
 ## Common Validation Errors

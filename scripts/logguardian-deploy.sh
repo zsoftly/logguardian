@@ -350,10 +350,6 @@ build_parameter_overrides() {
     
     # Tagging parameters
     local product_name="$PRODUCT_NAME"
-    if [ -n "$CUSTOMER_TAG_PREFIX" ]; then
-        params="$params CustomerTagPrefix=$CUSTOMER_TAG_PREFIX"
-        product_name="$CUSTOMER_TAG_PREFIX"
-    fi
     
     params="$params ProductName=$product_name"
     params="$params Owner=$OWNER"

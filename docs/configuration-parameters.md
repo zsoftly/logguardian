@@ -33,7 +33,7 @@
 ### AWS Config Configuration
 | Parameter | Type | Description | Default | Enterprise Use |
 |-----------|------|-------------|---------|----------------|
-| `CreateConfigService` | String | Set up AWS Config service | `true` | `false` (use existing) |
+| `CreateConfigService` | String | Set up AWS Config service | `false` | `false` (use existing) |
 | `ExistingConfigBucket` | String | Existing Config S3 bucket | - | `company-config-bucket` |
 | `ExistingConfigServiceRoleArn` | String | Existing Config service role | - | `arn:aws:iam::account:role/ConfigRole` |
 
@@ -55,8 +55,10 @@
 | Parameter | Type | Range | Description | Recommendation |
 |-----------|------|-------|-------------|----------------|
 | `DefaultRetentionDays` | Number | 1-3653 | Default log retention period | `30` (dev), `365` (prod) |
-| `LambdaMemorySize` | Number | 128-3008 | Lambda memory allocation (MB) | `256` (small), `512` (enterprise) |
+| `LambdaLogRetentionDays` | Number | 1-3653 | LogGuardian Lambda's own log retention | `7` (dev), `30` (prod) |
+| `LambdaMemorySize` | Number | 128-3008 | Lambda memory allocation (MB) | `128` (Go efficient), `256` (large scale) |
 | `LambdaTimeout` | Number | 1-900 | Lambda timeout (seconds) | `300` (typical), `900` (large accounts) |
+| `LogLevel` | String | ERROR, WARN, INFO, DEBUG | Lambda logging level | `ERROR` (prod), `INFO` (dev) |
 
 ### S3 Lifecycle Configuration
 | Parameter | Type | Range | Description |
@@ -75,20 +77,24 @@
 ```yaml
 Environment: dev
 DefaultRetentionDays: 7
-LambdaMemorySize: 256
+LambdaLogRetentionDays: 7
+LambdaMemorySize: 128
+LogLevel: INFO
 CreateMonitoringDashboard: false
 CreateKMSKey: true
-CreateConfigService: true
+CreateConfigService: false  # Most accounts already have Config enabled
 ```
 
 ### Production Environment
 ```yaml
 Environment: prod
 DefaultRetentionDays: 365
-LambdaMemorySize: 512
+LambdaLogRetentionDays: 30
+LambdaMemorySize: 128
+LogLevel: ERROR
 CreateMonitoringDashboard: true
 CreateKMSKey: true
-CreateConfigService: true
+CreateConfigService: false  # Most accounts already have Config enabled
 S3ExpirationDays: 2555  # 7 years
 ```
 
@@ -105,7 +111,6 @@ ExistingEncryptionConfigRule: enterprise-log-encryption-rule
 ExistingRetentionConfigRule: enterprise-log-retention-rule
 ProductName: MyCompany-LogGuardian
 Owner: Platform-Engineering
-CustomerTagPrefix: MYCO
 ```
 
 ### Manual Invocation Only
@@ -156,13 +161,12 @@ RetentionScheduleExpression: "cron(0 3 ? * * *)"
 
 ### Custom Tagging Strategy
 ```yaml
-CustomerTagPrefix: "ACME"
 ProductName: "LogCompliance"
 Owner: "CloudOps"
 ManagedBy: "Terraform"
 
 # Results in tags like:
-# Product: ACME-LogCompliance
+# Product: LogCompliance
 # Owner: CloudOps
 # Environment: prod
 # ManagedBy: Terraform

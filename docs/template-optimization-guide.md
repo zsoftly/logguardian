@@ -93,7 +93,6 @@ sam deploy --template-file template.yaml \
     ExistingRetentionConfigRule=enterprise-log-retention-rule \
     CreateEventBridgeRules=false \
     CreateMonitoringDashboard=false \
-    CustomerTagPrefix=ACME-LogGuardian \
   --region ca-central-1 \
   --capabilities CAPABILITY_NAMED_IAM
 ```
