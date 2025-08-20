@@ -11,7 +11,7 @@ This document outlines the comprehensive tagging strategy for LogGuardian deploy
 | `Environment` | Deployment environment | `dev`, `staging`, `prod`, `sandbox` | Parameter |
 | `ManagedBy` | Infrastructure management tool | `SAM`, `CloudFormation`, `Terraform` | Parameter |
 | `Application` | Application name | `LogGuardian` | Fixed |
-| `Version` | Application version | `1.0.0` | Fixed |
+| `Version` | Application version | `<current-version>` | Template-driven |
 | `CreatedBy` | Template that created resource | `SAM-Template` | Fixed |
 
 ## Tag Implementation
@@ -26,7 +26,7 @@ Globals:
     Environment: !Ref Environment
     ManagedBy: !Ref ManagedBy
     Application: LogGuardian
-    Version: "1.0.0"
+    Version: !Ref ApplicationVersion  # Dynamically set from template
     CreatedBy: "SAM-Template"
 ```
 

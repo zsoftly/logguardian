@@ -6,6 +6,7 @@ BINARY_NAME := bootstrap
 BUILD_DIR := build
 GOOS := linux
 GOARCH := amd64
+VERSION := $(shell cat VERSION || (echo "Error: VERSION file not found" >&2; exit 1))
 
 # Include SAM targets
 include sam.mk
@@ -145,7 +146,7 @@ publish: package
 	sam publish \
 		--template packaged-template.yaml \
 		--region ca-central-1 \
-		--semantic-version 1.0.6
+		--semantic-version $(VERSION)
 	@echo "✅ Application published to SAR"
 
 # Make SAR application public
@@ -170,7 +171,7 @@ deploy-prod:
 	@echo "Step 1: Get SAR template..."
 	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
 		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-		--semantic-version 1.0.6 \
+		--semantic-version $(VERSION) \
 		--region ca-central-1 \
 		--query 'TemplateUrl' --output text) && \
 	echo "Template URL: $$TEMPLATE_URL" && \
@@ -210,7 +211,7 @@ deploy-dev:
 	@echo "Step 1: Get SAR template..."
 	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
 		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-		--semantic-version 1.0.6 \
+		--semantic-version $(VERSION) \
 		--region ca-central-1 \
 		--query 'TemplateUrl' --output text) && \
 	echo "Template URL: $$TEMPLATE_URL" && \

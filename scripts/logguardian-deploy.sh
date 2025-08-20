@@ -381,7 +381,13 @@ deploy() {
         product_name="$CUSTOMER_TAG_PREFIX"
     fi
     
-    stack_tags="Product=$product_name Owner=$OWNER Environment=$ENVIRONMENT ManagedBy=$MANAGED_BY Application=LogGuardian Version=1.0.0 CreatedBy=SAM-Deploy"
+    # Get version from VERSION file (required)
+    if [ ! -f "${SCRIPT_DIR}/../VERSION" ]; then
+        log_error "VERSION file not found. Cannot determine application version."
+        exit 1
+    fi
+    version=$(cat "${SCRIPT_DIR}/../VERSION")
+    stack_tags="Product=$product_name Owner=$OWNER Environment=$ENVIRONMENT ManagedBy=$MANAGED_BY Application=LogGuardian Version=$version CreatedBy=SAM-Deploy"
     
     if [ "$VERBOSE" = "true" ]; then
         log_info "Parameter overrides: $parameter_overrides"

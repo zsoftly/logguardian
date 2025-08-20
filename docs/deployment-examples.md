@@ -4,10 +4,9 @@
 
 ### Get SAR Template
 ```bash
-# Get the application template from SAR
+# Get the application template from SAR (latest version)
 aws serverlessrepo create-cloud-formation-template \
   --application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-  --semantic-version 1.0.1 \
   --region ca-central-1
 ```
 

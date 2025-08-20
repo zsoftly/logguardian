@@ -1,6 +1,6 @@
 # LogGuardian Upgrade Guide
 
-## v1.0.4 Upgrade (Current → Latest)
+## Upgrade Guide (Latest Version)
 
 ### Changes
 - Dashboard compliance metrics now working
@@ -12,15 +12,14 @@
 #### Console Update
 1. CloudFormation → your stack → **Update**
 2. **Replace current template** → **Amazon S3 URL**
-3. Get URL: SAR Console → LogGuardian → **Copy S3 URL** (v1.0.4)
+3. Get URL: SAR Console → LogGuardian → **Copy S3 URL** (latest version)
 4. **Next** → **Next** → **Update**
 
 #### CLI Update
 ```bash
-# Get template URL
+# Get template URL (latest version)
 TEMPLATE_URL=$(aws serverlessrepo create-cloud-formation-template \
   --application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-  --semantic-version 1.0.4 \
   --region ca-central-1 \
   --query 'TemplateUrl' --output text)
 
@@ -32,7 +31,7 @@ aws cloudformation update-stack \
 ```
 
 ### New Deployments
-Use v1.0.4 from SAR - metrics included automatically.
+Use latest version from SAR - metrics included automatically.
 
 ### Parameter Migration
 Old `CreateConfigRules=true` becomes:

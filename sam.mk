@@ -1,3 +1,6 @@
+# Version from VERSION file
+VERSION ?= $(shell cat VERSION || (echo "Error: VERSION file not found" >&2; exit 1))
+
 # Build for SAM deployment
 .PHONY: sam-build
 sam-build: build
@@ -215,7 +218,7 @@ sam-publish-public: sam-package-sar
 	sam publish \
 		--template packaged-template.yaml \
 		--region ca-central-1 \
-		--semantic-version 1.0.1
+		--semantic-version $(VERSION)
 	@echo "Application published to SAR with public access"
 
 # Clean SAM artifacts
