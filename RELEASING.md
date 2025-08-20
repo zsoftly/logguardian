@@ -24,8 +24,10 @@ Start from an up-to-date main branch:
 ```bash
 git checkout main
 git pull origin main
-git checkout -b release/X.Y.Z
+git checkout -b release/X.Y.Z  # Example: release/1.2.0 (no 'v' prefix)
 ```
+
+**Note:** Branch naming convention is `release/X.Y.Z` without 'v' prefix
 
 ### 2. Update Version
 
@@ -91,7 +93,7 @@ After PR is merged, create the tag from main:
 git checkout main
 git pull origin main
 
-# Create and push tag
+# Create and push tag (MUST start with 'v' to trigger release pipeline)
 git tag -a vX.Y.Z -m "Release version X.Y.Z
 
 - List major changes
@@ -101,7 +103,9 @@ git tag -a vX.Y.Z -m "Release version X.Y.Z
 git push origin vX.Y.Z
 ```
 
-**Note:** The tag push will automatically trigger the GitHub Actions release pipeline, which creates a GitHub release with artifacts.
+**IMPORTANT:** 
+- Tags MUST start with 'v' (e.g., `v1.2.0`) to trigger the release pipeline
+- The tag push automatically triggers GitHub Actions to create a release with artifacts
 
 ### 8. Publish to AWS SAR
 
@@ -125,7 +129,18 @@ make publish
 - Confirm SAR application is updated in AWS Console
 - Verify release branch remains for historical reference
 
-## Version Numbering
+## Naming Conventions
+
+### Branches
+- Release branches: `release/X.Y.Z` (NO 'v' prefix)
+- Example: `release/1.2.0`
+
+### Tags
+- Tags: `vX.Y.Z` (MUST have 'v' prefix)
+- Example: `v1.2.0`
+- **Only tags starting with 'v' trigger the release pipeline**
+
+### Version Numbering
 
 We follow semantic versioning (MAJOR.MINOR.PATCH):
 
@@ -138,7 +153,7 @@ We follow semantic versioning (MAJOR.MINOR.PATCH):
 For a standard release (example with version 1.2.0):
 
 ```bash
-# 1. Create release branch from main
+# 1. Create release branch from main (no 'v' prefix)
 git checkout main && git pull origin main
 git checkout -b release/1.2.0
 
@@ -154,10 +169,10 @@ git push origin release/1.2.0
 # 4. Create PR (via GitHub UI or CLI)
 # 5. Wait for review and merge
 
-# 6. After PR is merged, tag from main
+# 6. After PR is merged, tag from main (MUST have 'v' prefix)
 git checkout main && git pull origin main
 git tag -a v1.2.0 -m "Release version 1.2.0"
-git push origin v1.2.0
+git push origin v1.2.0  # This triggers the release pipeline
 
 # 7. Publish to SAR
 export AWS_PROFILE=logprod
