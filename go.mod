@@ -7,12 +7,13 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.38.0
 	github.com/aws/aws-sdk-go-v2/config v1.26.1
 	github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.48.0
-	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.29.0
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.56.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.0
 	github.com/stretchr/testify v1.7.2
 )
 
 require (
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.1.0 // indirect
