@@ -12,7 +12,7 @@ Metadata:
     ReadmeUrl: README-SAR.md
     Labels: ['cloudwatch', 'compliance', 'security', 'kms', 'logs']
     HomePageUrl: https://github.com/zsoftly/logguardian
-    SemanticVersion: 1.2.4
+    SemanticVersion: 1.2.5
     SourceCodeUrl: https://github.com/zsoftly/logguardian
 
 Parameters:
@@ -26,7 +26,7 @@ Parameters:
   CreateKMSKey:
     Type: String
     Default: "true"
-    Description: Create new KMS key or use existing one
+    Description: "Create new KMS key or use existing one - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   ExistingKMSKeyArn:
@@ -44,7 +44,7 @@ Parameters:
   CreateConfigService:
     Type: String
     Default: "false"
-    Description: Create Config service resources (recorder, delivery channel, bucket) - Set to false by default as most accounts already have Config enabled
+    Description: "Create Config service resources (recorder, delivery channel, bucket) - Enter 'true' or 'false' (default: false - most accounts already have Config enabled)"
     AllowedValues: ["true", "false"]
 
   ExistingConfigBucket:
@@ -61,7 +61,7 @@ Parameters:
   CreateEncryptionConfigRule:
     Type: String
     Default: "true"
-    Description: Create new encryption Config rule or use existing one
+    Description: "Create new encryption Config rule or use existing one - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   ExistingEncryptionConfigRule:
@@ -73,7 +73,7 @@ Parameters:
   CreateRetentionConfigRule:
     Type: String
     Default: "true"
-    Description: Create new retention Config rule or use existing one
+    Description: "Create new retention Config rule or use existing one - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   ExistingRetentionConfigRule:
@@ -86,7 +86,7 @@ Parameters:
   CreateEventBridgeRules:
     Type: String
     Default: "true"
-    Description: Create EventBridge scheduling rules (disable for manual invocation)
+    Description: "Create EventBridge scheduling rules (disable for manual invocation) - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   EncryptionScheduleExpression:
@@ -147,7 +147,7 @@ Parameters:
   LogLevel:
     Type: String
     Default: INFO
-    Description: Logging level for Lambda function (ERROR for production, DEBUG for troubleshooting)
+    Description: "Logging level for Lambda function - Enter 'ERROR', 'WARN', 'INFO', or 'DEBUG' (default: INFO, use ERROR for production)"
     AllowedValues: [ERROR, WARN, INFO, DEBUG]
 
   # S3 Lifecycle Configuration (only for new Config bucket)
@@ -161,14 +161,14 @@ Parameters:
   EnableS3LifecycleRules:
     Type: String
     Default: "true"
-    Description: Enable S3 lifecycle rules for cost optimization (only applies to new buckets)
+    Description: "Enable S3 lifecycle rules for cost optimization (only applies to new buckets) - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   # Monitoring Configuration - Optional
   CreateMonitoringDashboard:
     Type: String
     Default: "true"
-    Description: Create CloudWatch dashboard for monitoring
+    Description: "Create CloudWatch dashboard for monitoring - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   # Resource Tagging
@@ -186,7 +186,7 @@ Parameters:
   ManagedBy:
     Type: String
     Default: SAM
-    Description: How this stack is managed (e.g., SAM, CloudFormation, Terraform)
+    Description: "How this stack is managed - Enter 'SAM', 'CloudFormation', 'Terraform', or 'Manual' (default: SAM)"
     AllowedValues: [SAM, CloudFormation, Terraform, Manual]
 
 # Conditions for optional resource creation
