@@ -8,15 +8,14 @@ This file contains examples of how to invoke the LogGuardian Lambda function to 
 {
   "type": "config-rule-evaluation",
   "configRuleName": "cloudwatch-log-group-encrypted",
-  "region": "ca-central-1",
-  "batchSize": 20
+  "region": "ca-central-1"
 }
 ```
 
 **Expected Behavior:**
 1. Lambda retrieves all NON_COMPLIANT resources from the Config rule
 2. Validates that log groups still exist
-3. Processes resources in batches of 20
+3. Processes resources efficiently
 4. Applies encryption and retention policies as needed
 5. Returns detailed results including success/failure counts
 
@@ -55,8 +54,7 @@ aws lambda invoke \
   --payload '{
     "type": "config-rule-evaluation",
     "configRuleName": "cloudwatch-log-group-encrypted",
-    "region": "ca-central-1",
-    "batchSize": 15
+    "region": "ca-central-1"
   }' \
   response.json
 
@@ -77,7 +75,7 @@ cat response.json
         {
           "Id": "1",
           "Arn": "arn:aws:lambda:ca-central-1:123456789012:function:logguardian-compliance",
-          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"cloudwatch-log-group-encrypted\",\"region\":\"ca-central-1\",\"batchSize\":25}"
+          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"cloudwatch-log-group-encrypted\",\"region\":\"ca-central-1\"}"
         }
       ]
     }
@@ -95,8 +93,7 @@ for region in ca-central-1 ca-west-1; do
     --payload "{
       \"type\": \"config-rule-evaluation\",
       \"configRuleName\": \"cloudwatch-log-group-encrypted\",
-      \"region\": \"$region\",
-      \"batchSize\": 10
+      \"region\": \"$region\"
     }" \
     "response-$region.json"
 done
@@ -132,12 +129,6 @@ done
 ```
 
 ## Performance Considerations
-
-### Batch Size Guidelines
-
-- **Small Environments (< 100 log groups)**: Use batch size 5-10
-- **Medium Environments (100-1000 log groups)**: Use batch size 10-20  
-- **Large Environments (> 1000 log groups)**: Use batch size 20-50
 
 ### Cost Optimization Examples
 

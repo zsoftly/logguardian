@@ -99,7 +99,7 @@ The Lambda execution role needs:
 - `kms:Describe*`, `kms:GetKeyPolicy` for validation
 - `logs:AssociateKmsKey` for applying encryption
 
-**Reference**: See [Go Lambda Function - IAM Permissions](go-lambda-function.md#iam-permissions) for complete IAM configuration.
+**Reference**: See [Architecture Overview](architecture-overview.md) for complete security configuration.
 
 ## Best Practices
 

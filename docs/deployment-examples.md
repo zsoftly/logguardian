@@ -77,7 +77,6 @@ resource "aws_cloudformation_stack" "logguardian" {
     Environment                    = "prod"
     ProductName                   = "TerraformCorp-LogGuardian"
     Owner                        = "Platform-Engineering"
-    CustomerTagPrefix            = "TC"
     ManagedBy                    = "Terraform"
     CreateKMSKey                 = "false"
     ExistingKMSKeyArn           = aws_kms_key.logs.arn

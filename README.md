@@ -73,10 +73,10 @@ make sam-deploy-dev
 
 **📚 Comprehensive Documentation:**
 - **[Problem Statement & Solution](docs/problem-statement-solution.md)** - Detailed problem analysis and solution overview
-- **[Architecture & Workflow](docs/architecture-diagrams.md)** - Mermaid diagrams showing how LogGuardian works
+- **[Architecture Overview](docs/architecture-overview.md)** - System design and visual diagrams showing how LogGuardian works
 - **[Configuration Parameters](docs/configuration-parameters.md)** - Complete parameter guide with enterprise examples
 - **[Deployment Examples](docs/deployment-examples.md)** - AWS CLI, CloudFormation, and Terraform examples
-- **[Go Lambda Function](docs/go-lambda-function.md)** - Lambda function implementation details
+- **[Lambda Implementation](docs/architecture-overview.md#lambda-function-)** - Lambda function implementation details
 - **[Config Rule Evaluation](docs/config-rule-evaluation.md)** - Batch processing and compliance analysis
 - **[KMS Encryption Validation](docs/kms-encryption-validation.md)** - KMS key validation and cross-region support
 - **[Local Testing](docs/local-testing.md)** - Comprehensive local Lambda testing with 9+ test scenarios

@@ -69,7 +69,7 @@ LogGuardian transforms CloudWatch log group compliance from a manual, error-pron
 
 ## Related Documentation
 
-- **[Architecture & Workflow](architecture-diagrams.md)** - Visual diagrams showing how LogGuardian works
+- **[Architecture Overview](architecture-overview.md)** - System design and visual diagrams showing how LogGuardian works
 - **[Configuration Parameters](configuration-parameters.md)** - Complete parameter guide for customizing the solution
 - **[Customer Infrastructure Integration](customer-infrastructure-integration.md)** - Enterprise integration patterns
 - **[Config Rule Evaluation](config-rule-evaluation.md)** - How compliance discovery works

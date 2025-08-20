@@ -61,8 +61,7 @@ The optimization is **automatically enabled** when using the Config Rule evaluat
 {
   "type": "config-rule-evaluation",
   "configRuleName": "cloudwatch-log-group-encrypted",
-  "region": "ca-central-1", 
-  "batchSize": 20
+  "region": "ca-central-1"
 }
 ```
 

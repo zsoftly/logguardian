@@ -12,19 +12,21 @@ Metadata:
     ReadmeUrl: README-SAR.md
     Labels: ['cloudwatch', 'compliance', 'security', 'kms', 'logs']
     HomePageUrl: https://github.com/zsoftly/logguardian
-    SemanticVersion: 1.1.0
+    SemanticVersion: 1.2.6
     SourceCodeUrl: https://github.com/zsoftly/logguardian
 
 Parameters:
   # Environment and Basic Configuration
   Environment:
     Type: String
+    Default: prod
     Description: Deployment environment (e.g., dev, staging, prod, test)
 
   # KMS Configuration - Optional
   CreateKMSKey:
     Type: String
-    Description: Create new KMS key or use existing one
+    Default: "true"
+    Description: "Create new KMS key or use existing one - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   ExistingKMSKeyArn:
@@ -34,13 +36,15 @@ Parameters:
 
   KMSKeyAlias:
     Type: String
+    Default: alias/logguardian-cloudwatch-logs
     Description: KMS key alias for new key or reference to existing key
     AllowedPattern: "^alias/[a-zA-Z0-9:/_-]+$"
 
   # AWS Config Configuration - Optional
   CreateConfigService:
     Type: String
-    Description: Create Config service resources (recorder, delivery channel, bucket)
+    Default: "false"
+    Description: "Create Config service resources (recorder, delivery channel, bucket) - Enter 'true' or 'false' (default: false - most accounts already have Config enabled)"
     AllowedValues: ["true", "false"]
 
   ExistingConfigBucket:
@@ -56,7 +60,8 @@ Parameters:
   # Config Rules Configuration - Optional (Independent Control)
   CreateEncryptionConfigRule:
     Type: String
-    Description: Create new encryption Config rule or use existing one
+    Default: "true"
+    Description: "Create new encryption Config rule or use existing one - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   ExistingEncryptionConfigRule:
@@ -67,7 +72,8 @@ Parameters:
 
   CreateRetentionConfigRule:
     Type: String
-    Description: Create new retention Config rule or use existing one
+    Default: "true"
+    Description: "Create new retention Config rule or use existing one - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   ExistingRetentionConfigRule:
@@ -79,73 +85,109 @@ Parameters:
   # EventBridge Scheduling - Optional
   CreateEventBridgeRules:
     Type: String
-    Description: Create EventBridge scheduling rules (disable for manual invocation)
+    Default: "true"
+    Description: "Create EventBridge scheduling rules (disable for manual invocation) - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   EncryptionScheduleExpression:
     Type: String
-    Description: Schedule for encryption compliance checks (e.g., cron(0 2 ? * * *) for daily at 2 AM)
-    AllowedPattern: "^(rate\\(.*\\)|cron\\(.*\\))$"
+    Default: "cron(0 3 ? * SUN *)"
+    Description: |
+      Schedule for encryption compliance checks (weekly on Saturday at 10 PM EST / Sunday 3 AM UTC)
+      Examples:
+        - rate(1 day) - Daily
+        - rate(12 hours) - Every 12 hours
+        - cron(0 3 ? * SUN *) - Weekly on Sunday at 3 AM UTC
+        - cron(0 2 ? * MON-FRI *) - Weekdays at 2 AM UTC
+        - cron(0 0 1 * ? *) - Monthly on the 1st at midnight UTC
+    AllowedPattern: "^(rate\\([0-9]+ (minute|minutes|hour|hours|day|days)\\)|cron\\([0-9*?/,-]+ [0-9*?/,-]+ [0-9*?/,L-]+ [0-9*?/,A-Z-]+ [0-9*?/,A-Z#-]+ [0-9*?/,-]+\\))$"
 
   RetentionScheduleExpression:
     Type: String
-    Description: Schedule for retention compliance checks (e.g., cron(0 3 ? * * *) for daily at 3 AM)
-    AllowedPattern: "^(rate\\(.*\\)|cron\\(.*\\))$"
+    Default: "cron(0 4 ? * SUN *)"
+    Description: |
+      Schedule for retention compliance checks (weekly on Saturday at 11 PM EST / Sunday 4 AM UTC)
+      Examples:
+        - rate(1 day) - Daily
+        - rate(12 hours) - Every 12 hours
+        - cron(0 4 ? * SUN *) - Weekly on Sunday at 4 AM UTC
+        - cron(0 3 ? * MON-FRI *) - Weekdays at 3 AM UTC
+        - cron(0 0 15 * ? *) - Monthly on the 15th at midnight UTC
+    AllowedPattern: "^(rate\\([0-9]+ (minute|minutes|hour|hours|day|days)\\)|cron\\([0-9*?/,-]+ [0-9*?/,-]+ [0-9*?/,L-]+ [0-9*?/,A-Z-]+ [0-9*?/,A-Z#-]+ [0-9*?/,-]+\\))$"
 
   # Lambda Configuration
   DefaultRetentionDays:
     Type: Number
+    Default: 1
     MinValue: 1
     MaxValue: 3653
-    Description: Default retention period for log groups in days
+    Description: Default retention period for remediated log groups (compliance threshold)
+
+  LambdaLogRetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 3653
+    Description: Retention period for LogGuardian Lambda function logs (30 days by default for troubleshooting)
 
   LambdaMemorySize:
     Type: Number
+    Default: 128
     MinValue: 128
     MaxValue: 3008
     Description: Memory allocation for Lambda function (MB)
 
   LambdaTimeout:
     Type: Number
+    Default: 60
     MinValue: 1
     MaxValue: 900
     Description: Lambda function timeout in seconds
 
+  LogLevel:
+    Type: String
+    Default: INFO
+    Description: "Logging level for Lambda function - Enter 'ERROR', 'WARN', 'INFO', or 'DEBUG' (default: INFO, use ERROR for production)"
+    AllowedValues: [ERROR, WARN, INFO, DEBUG]
+
   # S3 Lifecycle Configuration (only for new Config bucket)
   S3ExpirationDays:
     Type: Number
+    Default: 90
     MinValue: 1
     MaxValue: 3653
     Description: Days after which Config data is permanently deleted (only applies to new buckets)
 
   EnableS3LifecycleRules:
     Type: String
-    Description: Enable S3 lifecycle rules for cost optimization (only applies to new buckets)
+    Default: "true"
+    Description: "Enable S3 lifecycle rules for cost optimization (only applies to new buckets) - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   # Monitoring Configuration - Optional
   CreateMonitoringDashboard:
     Type: String
-    Description: Create CloudWatch dashboard for monitoring
+    Default: "true"
+    Description: "Create CloudWatch dashboard for monitoring - Enter 'true' or 'false' (default: true)"
     AllowedValues: ["true", "false"]
 
   # Resource Tagging
   ProductName:
     Type: String
+    Default: LogGuardian
     Description: Product name for resource tagging
 
   Owner:
     Type: String
+    Default: DevOps
     Description: Owner/Team responsible for this deployment
 
-  CustomerTagPrefix:
-    Type: String
-    Default: ""
-    Description: Customer-specific tag prefix (optional)
 
   ManagedBy:
     Type: String
-    Description: How this stack is managed (e.g., SAM, CloudFormation, Terraform)
+    Default: SAM
+    Description: "How this stack is managed - Enter 'SAM', 'CloudFormation', 'Terraform', or 'Manual' (default: SAM)"
+    AllowedValues: [SAM, CloudFormation, Terraform, Manual]
 
 # Conditions for optional resource creation
 Conditions:
@@ -166,8 +208,6 @@ Conditions:
   IsS3LifecycleEnabled: !And [!Condition ShouldCreateConfigService, !Equals [!Ref EnableS3LifecycleRules, "true"]]
   CreateDashboard: !Equals [!Ref CreateMonitoringDashboard, "true"]
 
-  # Tagging Conditions
-  HasCustomerTagPrefix: !Not [!Equals [!Ref CustomerTagPrefix, ""]]
 
 # Global settings for Lambda function
 Globals:
@@ -186,7 +226,7 @@ Globals:
         KMS_KEY_ALIAS: !Ref KMSKeyAlias
         DEFAULT_RETENTION_DAYS: !Ref DefaultRetentionDays
         ENVIRONMENT: !Ref Environment
-        LOG_LEVEL: INFO
+        LOG_LEVEL: !Ref LogLevel
         DRY_RUN: 'false'
         BATCH_LIMIT: '100'
         # Dynamic Config rule names (Independent Control)
@@ -199,7 +239,7 @@ Globals:
           - !Ref RetentionConfigRule
           - !Ref ExistingRetentionConfigRule
     Tags:
-      Product: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, !Ref ProductName]
+      Product: !Ref ProductName
       Owner: !Ref Owner
       Environment: !Ref Environment
       ManagedBy: !Ref ManagedBy
@@ -214,7 +254,7 @@ Resources:
     Properties:
       Description: !Sub 
         - "${TagPrefix} KMS key for ${Environment} environment"
-        - TagPrefix: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, !Ref ProductName]
+        - TagPrefix: !Ref ProductName
       KeyPolicy:
         Statement:
           - Sid: Enable root permissions
@@ -242,7 +282,7 @@ Resources:
         - Key: Name
           Value: !Sub 
             - "${TagPrefix}-logs-${Environment}"
-            - TagPrefix: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, !Ref ProductName]
+            - TagPrefix: !Ref ProductName
 
   LogGuardianKMSKeyAlias:
     Type: AWS::KMS::Alias
@@ -256,7 +296,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/logguardian-compliance-${Environment}"
-      RetentionInDays: !Ref DefaultRetentionDays
+      RetentionInDays: !Ref LambdaLogRetentionDays
       KmsKeyId: !If 
         - ShouldCreateKMSKey
         - !GetAtt LogGuardianKMSKey.Arn
@@ -265,7 +305,7 @@ Resources:
         - Key: Purpose
           Value: "Lambda function logs for LogGuardian compliance automation"
         - Key: Product
-          Value: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, !Ref ProductName]
+          Value: !Ref ProductName
 
   # Main Lambda Function
   LogGuardianFunction:
@@ -337,8 +377,7 @@ Resources:
                 "configRuleName": "${ConfigRuleName}",
                 "region": "${AWS::Region}",
                 "account": "${AWS::AccountId}",
-                "environment": "${Environment}",
-                "batchSize": 20
+                "environment": "${Environment}"
               }
             - ConfigRuleName: !If [ShouldCreateEncryptionConfigRule, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]
 
@@ -360,8 +399,7 @@ Resources:
                 "configRuleName": "${ConfigRuleName}",
                 "region": "${AWS::Region}",
                 "account": "${AWS::AccountId}",
-                "environment": "${Environment}",
-                "batchSize": 20
+                "environment": "${Environment}"
               }
             - ConfigRuleName: !If [ShouldCreateRetentionConfigRule, !Ref RetentionConfigRule, !Ref ExistingRetentionConfigRule]
 
@@ -401,7 +439,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AWS_ConfigRole
       Tags:
         - Key: Product
-          Value: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, !Ref ProductName]
+          Value: !Ref ProductName
         - Key: Purpose
           Value: "Config service role for LogGuardian"
 
@@ -434,7 +472,7 @@ Resources:
         Status: !If [IsS3LifecycleEnabled, Enabled, Suspended]
       Tags:
         - Key: Product
-          Value: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, !Ref ProductName]
+          Value: !Ref ProductName
         - Key: Purpose
           Value: "Config delivery channel storage for LogGuardian"
 
@@ -497,13 +535,10 @@ Resources:
   EncryptionConfigRule:
     Type: AWS::Config::ConfigRule
     Condition: ShouldCreateEncryptionConfigRule
-    DependsOn:
-      - ConfigurationRecorder
-      - DeliveryChannel
     Properties:
       ConfigRuleName: !Sub 
         - "${TagPrefix}-encryption-${Environment}"
-        - TagPrefix: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, "logguardian"]
+        - TagPrefix: "logguardian"
       Description: "Checks if CloudWatch log groups are encrypted with KMS"
       Source:
         Owner: AWS
@@ -516,13 +551,10 @@ Resources:
   RetentionConfigRule:
     Type: AWS::Config::ConfigRule
     Condition: ShouldCreateRetentionConfigRule
-    DependsOn:
-      - ConfigurationRecorder
-      - DeliveryChannel
     Properties:
       ConfigRuleName: !Sub 
         - "${TagPrefix}-retention-${Environment}"
-        - TagPrefix: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, "logguardian"]
+        - TagPrefix: "logguardian"
       Description: !Sub "Checks if CloudWatch log groups have retention policy set to at least ${DefaultRetentionDays} days"
       Source:
         Owner: AWS
@@ -543,7 +575,7 @@ Resources:
     Properties:
       DashboardName: !Sub 
         - "${TagPrefix}-${Environment}"
-        - TagPrefix: !If [HasCustomerTagPrefix, !Ref CustomerTagPrefix, "LogGuardian"]
+        - TagPrefix: "LogGuardian"
       DashboardBody: !Sub |
         {
           "widgets": [
@@ -611,10 +643,8 @@ Outputs:
 
   ConfigBucketName:
     Description: Name of the S3 bucket storing AWS Config data
-    Value: !If 
-      - ShouldCreateConfigService
-      - !Ref ConfigBucket
-      - !Ref ExistingConfigBucket
+    Condition: ShouldCreateConfigService
+    Value: !Ref ConfigBucket
     Export:
       Name: !Sub "${AWS::StackName}-ConfigBucket"
 
@@ -641,7 +671,7 @@ Outputs:
     Description: URL to the CloudWatch dashboard
     Value: !Sub 
       - "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${DashboardName}"
-      - DashboardName: !If [HasCustomerTagPrefix, !Sub "${CustomerTagPrefix}-${Environment}", !Sub "LogGuardian-${Environment}"]
+      - DashboardName: !Sub "LogGuardian-${Environment}"
     Export:
       Name: !Sub "${AWS::StackName}-DashboardURL"
 
@@ -672,7 +702,6 @@ Outputs:
           "configRuleName": "${ConfigRuleName}",
           "region": "${AWS::Region}",
           "account": "${AWS::AccountId}",
-          "environment": "${Environment}",
-          "batchSize": 20
+          "environment": "${Environment}"
         }' response.json --region ${AWS::Region}
       - ConfigRuleName: !If [ShouldCreateEncryptionConfigRule, !Ref EncryptionConfigRule, !Ref ExistingEncryptionConfigRule]

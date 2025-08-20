@@ -193,6 +193,8 @@ deployment-package.zip
 samconfig.toml
 packaged-template.yaml
 packaged-template.yml
+packaged-template-prod.yaml
+packaged-template-prod.yml
 *-packaged.yaml
 *-packaged.yml
 logguardian-template.yaml

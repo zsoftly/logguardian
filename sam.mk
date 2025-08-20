@@ -186,7 +186,6 @@ sam-deploy-enterprise: sam-build sam-validate
 			ExistingRetentionConfigRule=enterprise-retention-rule \
 			CreateEventBridgeRules=false \
 			CreateMonitoringDashboard=false \
-			CustomerTagPrefix=Enterprise-LogGuardian \
 			Owner=Enterprise-Security \
 		--resolve-s3
 

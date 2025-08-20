@@ -27,4 +27,4 @@ We **trust AWS Config evaluations** and skip redundant validation:
 - **Request formats**: See [examples.md](examples.md)
 - **Batch optimization**: See [kms-batch-optimization.md](kms-batch-optimization.md) 
 - **Rule classification**: See [rule-classification.md](rule-classification.md)
-- **Lambda architecture**: See [go-lambda-function.md](go-lambda-function.md)
+- **Lambda architecture**: See [architecture-overview.md](architecture-overview.md)

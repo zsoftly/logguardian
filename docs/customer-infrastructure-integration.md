@@ -51,10 +51,6 @@ ExistingConfigServiceRoleArn:
   Default: ""
   Description: "ARN of existing Config service role (leave empty to create new)"
 
-CustomerTagPrefix:
-  Type: String
-  Default: "LogGuardian"
-  Description: "Prefix for resource tags to match customer tagging strategy"
 ```
 
 ### Enhanced Conditions Section
@@ -78,7 +74,7 @@ LogGuardianKMSKey:
   Type: AWS::KMS::Key
   Condition: ShouldCreateKMSKey  # Only create if requested
   Properties:
-    Description: !Sub "${CustomerTagPrefix} KMS key for ${Environment} environment"
+    Description: !Sub "${ProductName} KMS key for ${Environment} environment"
     # ... rest of properties
 
 # Modified Config Service Role  
@@ -95,7 +91,7 @@ EncryptionConfigRule:
     - !Condition ShouldCreateConfigRules
     - !Not [!Condition HasExistingEncryptionRule]
   Properties:
-    ConfigRuleName: !Sub "${CustomerTagPrefix}-encryption-${Environment}"
+    ConfigRuleName: !Sub "logguardian-encryption-${Environment}"
     # ... rest of properties
 ```
 
@@ -117,7 +113,7 @@ Environment:
       - HasExistingRetentionRule
       - !Ref ExistingRetentionConfigRule
       - !Ref RetentionConfigRule
-    CUSTOMER_TAG_PREFIX: !Ref CustomerTagPrefix
+    PRODUCT_NAME: !Ref ProductName
 ```
 
 ## Customer Deployment Examples
@@ -205,7 +201,7 @@ declare -A region_configs=(
   ["eu-west-1"]="CreateConfigRules=false ExistingEncryptionConfigRule=gdpr-encryption-rule DefaultRetentionDays=2190"
   
   # Canada: All new resources, PIPEDA compliance
-  ["ca-central-1"]="DefaultRetentionDays=1825 CustomerTagPrefix=ACME-Canada-LogGuardian"
+  ["ca-central-1"]="DefaultRetentionDays=1825 ProductName=ACME-Canada-LogGuardian"
 )
 
 for region in "${!region_configs[@]}"; do
@@ -233,7 +229,7 @@ sam deploy --template-file template.yaml \
     CreateMonitoringDashboard=false \
     CreateKMSKey=false \
     ExistingKMSKeyArn=arn:aws:kms:ca-central-1:123456789012:key/monitoring-key \
-    CustomerTagPrefix="DatadogMonitored" \
+    ProductName="DatadogMonitored-LogGuardian" \
   --region ca-central-1 \
   --capabilities CAPABILITY_IAM
 
@@ -265,7 +261,7 @@ sam deploy --template-file template.yaml \
         {
           "Id": "1",
           "Arn": "arn:aws:lambda:region:account:function:logguardian-compliance-prod",
-          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"customer-existing-encryption-rule\",\"region\":\"ca-central-1\",\"batchSize\":25}"
+          "Input": "{\"type\":\"config-rule-evaluation\",\"configRuleName\":\"customer-existing-encryption-rule\",\"region\":\"ca-central-1\"}"
         }
       ]
     }
@@ -301,9 +297,8 @@ type CustomerConfigEvent struct {
     ConfigRuleName      string `json:"configRuleName,omitempty"`
     CustomerRuleName    string `json:"customerRuleName,omitempty"`    // Customer's existing rule
     CustomerKMSKeyArn   string `json:"customerKmsKeyArn,omitempty"`   // Customer's KMS key
-    CustomerTagPrefix   string `json:"customerTagPrefix,omitempty"`   // Customer tagging
+    ProductName         string `json:"productName,omitempty"`         // Product name for tagging
     Region              string `json:"region,omitempty"`
-    BatchSize           int    `json:"batchSize,omitempty"`
 }
 
 // Handle customer-specific configuration
@@ -321,7 +316,7 @@ func (h *Handler) handleCustomerConfig(ctx context.Context, event CustomerConfig
     }
     
     // Process with customer-specific settings
-    return h.processComplianceWithCustomerSettings(ctx, configRule, kmsKeyArn, event.CustomerTagPrefix)
+    return h.processComplianceWithCustomerSettings(ctx, configRule, kmsKeyArn, event.ProductName)
 }
 ```
 
