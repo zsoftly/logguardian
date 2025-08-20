@@ -15,7 +15,7 @@
 3. Get URL: SAR Console → LogGuardian → **Copy S3 URL** (latest version)
 4. **Next** → **Next** → **Update**
 
-#### CLI Update
+#### CLI Update (Recommended - With Change Set Review)
 ```bash
 # Get template URL (latest version)
 TEMPLATE_URL=$(aws serverlessrepo create-cloud-formation-template \
@@ -23,9 +23,43 @@ TEMPLATE_URL=$(aws serverlessrepo create-cloud-formation-template \
   --region ca-central-1 \
   --query 'TemplateUrl' --output text)
 
-# Update stack
+# Create a change set for review
+aws cloudformation create-change-set \
+  --stack-name serverlessrepo-LogGuardian \
+  --change-set-name logguardian-upgrade-$(date +%Y%m%d-%H%M%S) \
+  --template-url $TEMPLATE_URL \
+  --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+
+# Review the change set via CLI
+aws cloudformation describe-change-set \
+  --change-set-name logguardian-upgrade-$(date +%Y%m%d-%H%M%S) \
+  --stack-name serverlessrepo-LogGuardian \
+  --query 'Changes[*].[Type, ResourceChange.Action, ResourceChange.LogicalResourceId, ResourceChange.ResourceType]' \
+  --output table
+
+# Or review in the AWS Console:
+# CloudFormation → Stack → Change Sets → Review changes
+
+# If changes look good, execute the change set
+aws cloudformation execute-change-set \
+  --change-set-name logguardian-upgrade-$(date +%Y%m%d-%H%M%S) \
+  --stack-name serverlessrepo-LogGuardian
+
+# Monitor the update progress
+aws cloudformation wait stack-update-complete \
+  --stack-name serverlessrepo-LogGuardian
+```
+
+#### Direct Update (Without Review)
+```bash
+# Get template URL and update directly
+TEMPLATE_URL=$(aws serverlessrepo create-cloud-formation-template \
+  --application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
+  --region ca-central-1 \
+  --query 'TemplateUrl' --output text)
+
 aws cloudformation update-stack \
-  --stack-name your-stack-name \
+  --stack-name serverlessrepo-LogGuardian \
   --template-url $TEMPLATE_URL \
   --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
 ```
