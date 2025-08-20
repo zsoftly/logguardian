@@ -46,7 +46,7 @@ type BatchRemediationContext struct {
 	retentionDays      int32
 }
 
-// NewBatchRemediationContext creates a new batch context with KMS validation
+// NewBatchRemediationContext creates a new batch context with KMS validation only for encryption rules
 func (s *ComplianceService) NewBatchRemediationContext(ctx context.Context, request types.BatchComplianceRequest) (*BatchRemediationContext, error) {
 	batchCtx := &BatchRemediationContext{
 		region:             request.Region,
@@ -58,30 +58,43 @@ func (s *ComplianceService) NewBatchRemediationContext(ctx context.Context, requ
 		kmsCache:           &BatchKMSValidationCache{keyAlias: s.config.DefaultKMSKeyAlias},
 	}
 
+	// Determine rule type to decide if KMS validation is needed
+	ruleType := s.ruleClassifier.ClassifyRule(request.ConfigRuleName)
+
 	slog.Info("Initializing batch remediation context",
 		"config_rule", request.ConfigRuleName,
 		"region", request.Region,
+		"rule_type", ruleType.String(),
 		"kms_key_alias", s.config.DefaultKMSKeyAlias,
 		"dry_run", s.config.DryRun,
 		"audit_action", "batch_context_init")
 
-	// Pre-validate KMS key once for the entire batch
-	if err := batchCtx.validateKMSKeyForBatch(ctx, s); err != nil {
-		slog.Error("Failed to validate KMS key for batch operation",
+	// Only validate KMS key for encryption rules
+	if ruleType == types.RuleTypeEncryption {
+		// Pre-validate KMS key once for the entire batch
+		if err := batchCtx.validateKMSKeyForBatch(ctx, s); err != nil {
+			slog.Error("Failed to validate KMS key for batch operation",
+				"config_rule", request.ConfigRuleName,
+				"region", request.Region,
+				"kms_key_alias", s.config.DefaultKMSKeyAlias,
+				"error", err,
+				"audit_action", "batch_kms_validation_failed")
+			return nil, fmt.Errorf(BatchKMSValidationFailedTemplate, s.config.DefaultKMSKeyAlias, request.Region, request.ConfigRuleName, err)
+		}
+
+		slog.Info("Batch remediation context initialized successfully with KMS validation",
 			"config_rule", request.ConfigRuleName,
 			"region", request.Region,
-			"kms_key_alias", s.config.DefaultKMSKeyAlias,
-			"error", err,
-			"audit_action", "batch_kms_validation_failed")
-		return nil, fmt.Errorf(BatchKMSValidationFailedTemplate, s.config.DefaultKMSKeyAlias, request.Region, request.ConfigRuleName, err)
+			"kms_key_validated", batchCtx.kmsCache.keyInfo != nil,
+			"policy_validated", batchCtx.kmsCache.policyValidated,
+			"audit_action", "batch_context_ready")
+	} else {
+		slog.Info("Batch remediation context initialized successfully (no KMS validation needed)",
+			"config_rule", request.ConfigRuleName,
+			"region", request.Region,
+			"rule_type", ruleType.String(),
+			"audit_action", "batch_context_ready")
 	}
-
-	slog.Info("Batch remediation context initialized successfully",
-		"config_rule", request.ConfigRuleName,
-		"region", request.Region,
-		"kms_key_validated", batchCtx.kmsCache.keyInfo != nil,
-		"policy_validated", batchCtx.kmsCache.policyValidated,
-		"audit_action", "batch_context_ready")
 
 	return batchCtx, nil
 }
