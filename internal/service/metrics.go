@@ -30,7 +30,7 @@ func NewMetricsService(cfg aws.Config) *MetricsService {
 
 // MetricsData holds metrics for batch publishing
 type MetricsData struct {
-	LogGroupsProcessed int
+	LogGroupsProcessed  int
 	LogGroupsRemediated int
 	RemediationErrors   int
 }
@@ -38,7 +38,7 @@ type MetricsData struct {
 // PublishBatchMetrics publishes all metrics from a batch operation
 func (m *MetricsService) PublishBatchMetrics(ctx context.Context, metrics MetricsData) error {
 	timestamp := time.Now()
-	
+
 	var metricData []types.MetricDatum
 
 	// Add LogGroupsProcessed metric
@@ -121,7 +121,7 @@ func (m *MetricsService) PublishBatchMetrics(ctx context.Context, metrics Metric
 // PublishSingleMetric publishes a single metric
 func (m *MetricsService) PublishSingleMetric(ctx context.Context, metricName string, value float64, unit types.StandardUnit) error {
 	timestamp := time.Now()
-	
+
 	metricData := []types.MetricDatum{
 		{
 			MetricName: aws.String(metricName),
@@ -160,4 +160,3 @@ func (m *MetricsService) PublishSingleMetric(ctx context.Context, metricName str
 
 	return nil
 }
-

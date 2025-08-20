@@ -132,12 +132,14 @@ func (s *ComplianceService) RemediateLogGroup(ctx context.Context, compliance ty
 		if err := s.applyEncryption(ctx, compliance.LogGroupName); err != nil {
 			result.Success = false
 			result.Error = fmt.Errorf("failed to apply encryption: %w", err)
-			
+
 			// Publish error metric
 			if s.metricsService != nil {
-				s.metricsService.PublishSingleMetric(ctx, "RemediationErrors", 1, cloudwatchtypes.StandardUnitCount)
+				if err := s.metricsService.PublishSingleMetric(ctx, "RemediationErrors", 1, cloudwatchtypes.StandardUnitCount); err != nil {
+					slog.Warn("Failed to publish error metric", "error", err)
+				}
 			}
-			
+
 			return result, err
 		}
 		result.EncryptionApplied = true
@@ -149,12 +151,14 @@ func (s *ComplianceService) RemediateLogGroup(ctx context.Context, compliance ty
 		if err := s.applyRetentionPolicy(ctx, compliance.LogGroupName); err != nil {
 			result.Success = false
 			result.Error = fmt.Errorf("failed to apply retention policy: %w", err)
-			
+
 			// Publish error metric
 			if s.metricsService != nil {
-				s.metricsService.PublishSingleMetric(ctx, "RemediationErrors", 1, cloudwatchtypes.StandardUnitCount)
+				if err := s.metricsService.PublishSingleMetric(ctx, "RemediationErrors", 1, cloudwatchtypes.StandardUnitCount); err != nil {
+					slog.Warn("Failed to publish error metric", "error", err)
+				}
 			}
-			
+
 			return result, err
 		}
 		result.RetentionApplied = true
@@ -170,13 +174,13 @@ func (s *ComplianceService) RemediateLogGroup(ctx context.Context, compliance ty
 			LogGroupsRemediated: 0,
 			RemediationErrors:   0,
 		}
-		
+
 		if result.Success {
 			metrics.LogGroupsRemediated = 1
 		} else {
 			metrics.RemediationErrors = 1
 		}
-		
+
 		if err := s.metricsService.PublishBatchMetrics(ctx, metrics); err != nil {
 			// Log error but don't fail the operation
 			slog.Warn("Failed to publish single remediation metrics", "error", err)

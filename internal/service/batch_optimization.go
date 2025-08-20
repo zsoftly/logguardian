@@ -298,7 +298,7 @@ func (s *ComplianceService) ProcessNonCompliantResourcesOptimized(ctx context.Co
 			LogGroupsRemediated: result.SuccessCount,
 			RemediationErrors:   result.FailureCount,
 		}
-		
+
 		if err := s.metricsService.PublishBatchMetrics(ctx, metrics); err != nil {
 			// Log error but don't fail the operation
 			slog.Warn("Failed to publish batch metrics", "error", err)
