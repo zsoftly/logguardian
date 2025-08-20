@@ -89,10 +89,12 @@ jobs:
           fi
           
           # Use GitHub's recommended heredoc pattern for multiline outputs
+          # Using a unique delimiter to avoid conflicts
+          EOF_MARKER=$(uuidgen || echo "CHANGELOG_END_$$")
           {
-            echo 'changelog<<EOF'
+            echo "changelog<<$EOF_MARKER"
             cat changelog.md
-            echo 'EOF'
+            echo "$EOF_MARKER"
           } >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
