@@ -90,12 +90,11 @@ jobs:
           
           # Use GitHub's recommended heredoc pattern for multiline outputs
           # Using a unique delimiter to avoid conflicts
-          EOF_MARKER=$(uuidgen || echo "CHANGELOG_END_$$")
-          {
-            echo "changelog<<$EOF_MARKER"
-            cat changelog.md
-            echo "$EOF_MARKER"
-          } >> $GITHUB_OUTPUT
+          EOF_MARKER="CHANGELOG_END_$$_$RANDOM"
+          echo "changelog<<$EOF_MARKER" >> $GITHUB_OUTPUT
+          cat changelog.md >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT  # Ensure newline before delimiter
+          echo "$EOF_MARKER" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
