@@ -101,8 +101,7 @@ func parseCommandLineArgs() CommandInput {
 	}
 	if envBatchSize := os.Getenv("BATCH_SIZE"); envBatchSize != "" {
 		var batchSize int
-		fmt.Sscanf(envBatchSize, "%d", &batchSize)
-		if batchSize > 0 {
+		if _, err := fmt.Sscanf(envBatchSize, "%d", &batchSize); err == nil && batchSize > 0 {
 			input.BatchSize = batchSize
 		}
 	}
@@ -231,7 +230,7 @@ func outputError(format, executionID, message string, err error) {
 	case "json":
 		encoder := json.NewEncoder(os.Stderr)
 		encoder.SetIndent("", "  ")
-		encoder.Encode(result)
+		_ = encoder.Encode(result)
 	case "text":
 		fmt.Fprintf(os.Stderr, "Execution ID: %s\n", executionID)
 		fmt.Fprintf(os.Stderr, "Status: failed\n")
