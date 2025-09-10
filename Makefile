@@ -310,3 +310,93 @@ help:
 	@echo "  make deploy-prod # Deploy to production account"
 	@echo ""
 	@echo "For complete SAM targets, see: sam.mk"
+
+# =============================================================================
+# Container Build Targets
+# =============================================================================
+
+# Container variables
+CONTAINER_IMAGE := logguardian
+CONTAINER_TAG := $(VERSION)
+CONTAINER_REGISTRY := 
+CONTAINER_BINARY := logguardian-container
+
+# Build container binary
+.PHONY: container-build
+container-build:
+	@echo "Building container binary..."
+	mkdir -p $(BUILD_DIR)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
+		-ldflags="-s -w -X main.version=$(VERSION)" \
+		-o $(BUILD_DIR)/$(CONTAINER_BINARY) \
+		./cmd/container
+
+# Build Docker image
+.PHONY: docker-build
+docker-build:
+	@echo "Building Docker image $(CONTAINER_IMAGE):$(CONTAINER_TAG)..."
+	docker build -t $(CONTAINER_IMAGE):$(CONTAINER_TAG) \
+		-t $(CONTAINER_IMAGE):latest \
+		--build-arg VERSION=$(VERSION) \
+		.
+
+# Run container locally with dry-run
+.PHONY: docker-run-dryrun
+docker-run-dryrun: docker-build
+	@echo "Running container in dry-run mode..."
+	docker run --rm \
+		-e AWS_REGION=ca-central-1 \
+		-e CONFIG_RULE_NAME=test-rule \
+		-e DRY_RUN=true \
+		-v ~/.aws:/home/logguardian/.aws:ro \
+		$(CONTAINER_IMAGE):$(CONTAINER_TAG) \
+		--dry-run --verbose
+
+# Run container with AWS credentials
+.PHONY: docker-run
+docker-run: docker-build
+	@echo "Running container..."
+	docker run --rm \
+		-e AWS_REGION=$(AWS_REGION) \
+		-e CONFIG_RULE_NAME=$(CONFIG_RULE_NAME) \
+		-v ~/.aws:/home/logguardian/.aws:ro \
+		$(CONTAINER_IMAGE):$(CONTAINER_TAG)
+
+# Push container to registry
+.PHONY: docker-push
+docker-push:
+	@if [ -z "$(CONTAINER_REGISTRY)" ]; then \
+		echo "Error: CONTAINER_REGISTRY not set"; \
+		exit 1; \
+	fi
+	@echo "Tagging image for registry..."
+	docker tag $(CONTAINER_IMAGE):$(CONTAINER_TAG) $(CONTAINER_REGISTRY)/$(CONTAINER_IMAGE):$(CONTAINER_TAG)
+	docker tag $(CONTAINER_IMAGE):$(CONTAINER_TAG) $(CONTAINER_REGISTRY)/$(CONTAINER_IMAGE):latest
+	@echo "Pushing to registry..."
+	docker push $(CONTAINER_REGISTRY)/$(CONTAINER_IMAGE):$(CONTAINER_TAG)
+	docker push $(CONTAINER_REGISTRY)/$(CONTAINER_IMAGE):latest
+
+# Clean container artifacts
+.PHONY: docker-clean
+docker-clean:
+	@echo "Cleaning container images..."
+	docker rmi $(CONTAINER_IMAGE):$(CONTAINER_TAG) $(CONTAINER_IMAGE):latest 2>/dev/null || true
+	rm -f $(BUILD_DIR)/$(CONTAINER_BINARY)
+
+# Run container tests
+.PHONY: container-test
+container-test:
+	@echo "Running container tests..."
+	go test -v ./cmd/container/... ./internal/container/...
+
+# Validate container build
+.PHONY: container-validate
+container-validate: container-build container-test docker-build
+	@echo "Container validation complete"
+
+# Scan container for vulnerabilities
+.PHONY: docker-scan
+docker-scan: docker-build
+	@echo "Scanning container for vulnerabilities..."
+	@which trivy > /dev/null 2>&1 || (echo "Trivy not installed. Install from https://github.com/aquasecurity/trivy" && exit 1)
+	trivy image $(CONTAINER_IMAGE):$(CONTAINER_TAG)
