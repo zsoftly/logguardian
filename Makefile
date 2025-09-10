@@ -345,7 +345,7 @@ docker-build:
 docker-run-dryrun: docker-build
 	@echo "Running container in dry-run mode..."
 	docker run --rm \
-		-e AWS_REGION=us-east-1 \
+		-e AWS_REGION=ca-central-1 \
 		-e CONFIG_RULE_NAME=test-rule \
 		-e DRY_RUN=true \
 		-v ~/.aws:/home/logguardian/.aws:ro \
