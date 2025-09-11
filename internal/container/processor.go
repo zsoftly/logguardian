@@ -295,7 +295,8 @@ func (p *CommandProcessor) processDryRun(ctx context.Context, request CommandReq
 }
 
 func (p *CommandProcessor) analyzeResourceCompliance(ctx context.Context, resource types.NonCompliantResource, ruleType types.RuleType) (types.ComplianceResult, error) {
-	// This would need to fetch the actual log group configuration
+	// Context will be used for AWS API calls when fetching actual log group configuration
+	_ = ctx // Currently unused but kept for future AWS API integration
 	// For now, we'll return based on the rule type
 	result := types.ComplianceResult{
 		LogGroupName: resource.ResourceName,
