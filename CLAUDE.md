@@ -50,6 +50,8 @@ docker build -t logguardian:latest .
 
 ### Test with AWS Profile (Local Binary)
 ```bash
+# ALWAYS use ca-central-1 region for all testing
+
 # Basic dry-run test
 ./build/logguardian-container \
   --config-rule cw-lg-retention-min \
@@ -76,6 +78,8 @@ docker build -t logguardian:latest .
 
 ### Docker Testing Commands
 ```bash
+# ALWAYS use ca-central-1 region for all testing
+
 # Run with AWS credentials from host
 docker run --rm \
   -v ~/.aws:/home/logguardian/.aws:ro \
@@ -90,6 +94,7 @@ docker run --rm \
   -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
   -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
   -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+  -e AWS_DEFAULT_REGION=ca-central-1 \
   logguardian:latest \
   --config-rule cw-lg-retention-min \
   --region ca-central-1 \
@@ -105,18 +110,52 @@ docker-compose run --rm logguardian \
 ## Linting and Testing
 
 ### Required Checks Before Committing
+**IMPORTANT**: Always run these checks locally to avoid pipeline failures
+
 ```bash
-# Format code
+# 1. Format code
 go fmt ./...
 
-# Run tests
+# 2. Run golangci-lint (REQUIRED - catches security issues)
+# Install if needed: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+golangci-lint run --timeout=5m
+
+# 3. Run tests
 go test ./internal/container/... -v
 
-# Build to verify compilation
+# 4. Run tests with race detector
+go test ./internal/container/... -race
+
+# 5. Build to verify compilation
 go build ./...
 
-# Run with dry-run to verify functionality
+# 6. Run with dry-run to verify functionality (ALWAYS use ca-central-1)
 ./build/logguardian-container --config-rule cw-lg-retention-min --region ca-central-1 --profile logdev --dry-run
+```
+
+### Quick Pre-Commit Check Script
+```bash
+#!/bin/bash
+# Save as pre-commit.sh and run before committing
+
+echo "🔍 Running pre-commit checks..."
+
+echo "📝 Formatting code..."
+go fmt ./...
+
+echo "🔒 Running security linter..."
+golangci-lint run --timeout=5m || exit 1
+
+echo "🧪 Running tests..."
+go test ./... -v || exit 1
+
+echo "🏁 Running race detector..."
+go test ./... -race || exit 1
+
+echo "🔨 Building..."
+go build ./... || exit 1
+
+echo "✅ All checks passed!"
 ```
 
 ## Common Issues and Solutions
@@ -135,11 +174,11 @@ go build ./...
 
 ## Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
+| Variable | Description | Example/Default |
+|----------|-------------|-----------------|
 | AWS_PROFILE | AWS profile to use | logdev |
-| AWS_REGION | AWS region | ca-central-1 |
-| AWS_DEFAULT_REGION | Fallback region | ca-central-1 |
+| AWS_REGION | AWS region (ALWAYS use ca-central-1) | ca-central-1 |
+| AWS_DEFAULT_REGION | Fallback region (ALWAYS use ca-central-1) | ca-central-1 |
 | CONFIG_RULE_NAME | Config rule name | cw-lg-retention-min |
 | BATCH_SIZE | Resources per batch | 10 |
 | DRY_RUN | Enable dry-run mode | true |
@@ -171,10 +210,19 @@ The container implementation maintains 100% functional parity with the Lambda ve
 
 ## Important Reminders
 1. **NEVER downgrade Go version below 1.24 - Project uses Go 1.24 as standard**
-2. **Always test with --dry-run flag first**
-3. **Run tests before committing code**
-4. **Maintain functional parity between Lambda and container versions**
-5. **Document any new authentication strategies or configuration options**
+2. **ALWAYS use ca-central-1 region for all AWS operations**
+3. **ALWAYS run golangci-lint locally before committing to catch security issues**
+4. **Always test with --dry-run flag first**
+5. **Run tests before committing code**
+6. **Maintain functional parity between Lambda and container versions**
+7. **Document any new authentication strategies or configuration options**
+8. **Use crypto/rand for randomness, NEVER math/rand (security requirement)**
+
+## Default AWS Configuration
+**IMPORTANT**: Always use `ca-central-1` as the default AWS region for all operations:
+- **Region**: `ca-central-1` (Canada Central)
+- **Profile**: `logdev` (for development/testing)
+- **Config Rule**: `cw-lg-retention-min`
 
 ## Contact and Support
 - Repository: github.com/zsoftly/logguardian

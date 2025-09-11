@@ -2,11 +2,12 @@ package container
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
-	"math/rand"
+	"math/big"
 	"sync/atomic"
 	"time"
 
@@ -220,10 +221,19 @@ func isThrottlingError(err error) bool {
 // The jitter is ±25% of the base duration, providing a random variation
 // that helps distribute retry attempts across time.
 func calculateJitter(baseDuration time.Duration) time.Duration {
-	// Generate a random value between -0.25 and +0.25
-	// rand.Float64() returns [0.0, 1.0), so (rand.Float64() - 0.5) gives [-0.5, 0.5)
-	// Multiplying by 2 * JitterPercentage gives us [-0.25, 0.25)
-	jitterMultiplier := (rand.Float64() - 0.5) * 2 * JitterPercentage
+	// Generate a cryptographically secure random value between -0.25 and +0.25
+	// Using crypto/rand for security compliance
+	max := big.NewInt(1000000) // Use microsecond precision
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		// If crypto/rand fails, return base duration without jitter
+		slog.Warn("Failed to generate secure random jitter, using base duration", "error", err)
+		return baseDuration
+	}
+
+	// Convert to float between 0 and 1, then shift to -0.5 to 0.5, then scale by jitter percentage
+	randomFloat := float64(n.Int64()) / float64(max.Int64())
+	jitterMultiplier := (randomFloat - 0.5) * 2 * JitterPercentage
 
 	// Apply jitter to the base duration
 	jitterAmount := time.Duration(float64(baseDuration) * jitterMultiplier)

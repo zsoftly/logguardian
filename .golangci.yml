@@ -18,7 +18,7 @@ linters:
     - goimports     # Check import formatting
     - misspell      # Find misspelled words
     - gocyclo       # Check cyclomatic complexity
-    - gosec         # Security-focused linter
+    - gosec         # Security checker (catches weak random, etc.)
     - unconvert     # Remove unnecessary type conversions
     - bodyclose     # Check HTTP response body closes
 
