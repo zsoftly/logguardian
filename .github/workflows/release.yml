@@ -171,119 +171,23 @@ jobs:
           sha256sum * > checksums.txt
           cat checksums.txt
 
-      - name: Read release notes
-        id: release_notes
+      - name: Prepare release body
         run: |
-          if [ -f RELEASE_NOTES.md ]; then
-            echo "Found RELEASE_NOTES.md"
-            # Base64 encode to avoid delimiter issues
-            NOTES_CONTENT=$(base64 -w0 < RELEASE_NOTES.md)
-            echo "notes_base64=$NOTES_CONTENT" >> $GITHUB_OUTPUT
-          else
-            echo "No RELEASE_NOTES.md found, generating from git log"
-            
-            # Get previous tag
-            PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
-            
-            # Generate release notes to a temp file first
-            TEMP_NOTES=$(mktemp)
-            {
-              echo "# Release ${{ github.ref_name }}"
-              echo ""
-              echo "Release Date: $(date +%Y-%m-%d)"
-              echo ""
-              
-              if [ -n "$PREV_TAG" ]; then
-                echo "## Changes since $PREV_TAG"
-                echo ""
-                
-                # Features
-                echo "### 🚀 Features"
-                git log $PREV_TAG..${{ github.ref_name }} --grep="^feat" --pretty=format:"- %s (%h)" || echo "- No new features"
-                echo ""
-                echo ""
-                
-                # Bug fixes
-                echo "### 🐛 Bug Fixes"
-                git log $PREV_TAG..${{ github.ref_name }} --grep="^fix" --pretty=format:"- %s (%h)" || echo "- No bug fixes"
-                echo ""
-                echo ""
-                
-                # Other changes
-                echo "### 🔧 Other Changes"
-                git log $PREV_TAG..${{ github.ref_name }} --grep="^chore\|^docs\|^test\|^refactor" --pretty=format:"- %s (%h)" || echo "- No other changes"
-                echo ""
-              else
-                echo "Initial release of LogGuardian - AWS CloudWatch Log Compliance Automation"
-              fi
-              
-              echo ""
-              echo "## Installation"
-              echo ""
-              echo "### Docker"
-              echo '```bash'
-              echo "docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
-              echo '```'
-              echo ""
-              echo "### Lambda"
-              echo "Download the Lambda deployment package from the release artifacts below."
-              echo ""
-              echo "### Container Binary"
-              echo "Download the standalone container binary from the release artifacts below."
-            } > "$TEMP_NOTES"
-            
-            # Base64 encode to avoid delimiter issues
-            NOTES_CONTENT=$(base64 -w0 < "$TEMP_NOTES")
-            echo "notes_base64=$NOTES_CONTENT" >> $GITHUB_OUTPUT
-            rm "$TEMP_NOTES"
-          fi
-          
-      - name: Decode release notes
-        id: decode_notes
-        run: |
-          # Decode the base64 content back to text
-          echo "${{ steps.release_notes.outputs.notes_base64 }}" | base64 -d > release_notes_decoded.txt
-          # Read it into a variable using a safe delimiter
-          {
-            echo 'notes<<GITHUB_RELEASE_NOTES_END'
-            cat release_notes_decoded.txt
-            echo 'GITHUB_RELEASE_NOTES_END'
-          } >> $GITHUB_OUTPUT
+          # Use scripts to handle all release notes preparation
+          # This avoids inline code and delimiter issues
+          NOTES_BASE64=$(./scripts/02_encode_release_notes.sh "${{ github.ref_name }}" "${{ github.repository }}")
+          ./scripts/03_prepare_release_body.sh \
+            "${{ github.ref_name }}" \
+            "${{ github.repository }}" \
+            "$NOTES_BASE64" \
+            "release_body.md"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: LogGuardian ${{ github.ref_name }}
-          body: |
-            ${{ steps.decode_notes.outputs.notes }}
-            
-            ## Checksums
-            ```
-            $(cat artifacts/checksums.txt)
-            ```
-            
-            ## Quick Start
-            
-            ### Docker (Recommended)
-            ```bash
-            # Pull and run the container
-            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-            docker run --rm ghcr.io/${{ github.repository }}:${{ github.ref_name }} --help
-            ```
-            
-            ### AWS Lambda
-            ```bash
-            # Download and deploy
-            curl -L -o logguardian-compliance.zip \
-              https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/logguardian-compliance-${{ github.ref_name }}.zip
-            
-            aws lambda update-function-code \
-              --function-name logguardian-compliance \
-              --zip-file fileb://logguardian-compliance.zip
-            ```
-            
-            See [Documentation](https://github.com/${{ github.repository }}#documentation--support) for detailed usage instructions.
+          body_path: release_body.md
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           files: |
