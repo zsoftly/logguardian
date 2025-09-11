@@ -144,7 +144,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [build-lambda, build-container, publish-docker]
+    needs: [build-lambda, build-container]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
