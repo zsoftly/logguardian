@@ -176,23 +176,18 @@ jobs:
         run: |
           if [ -f RELEASE_NOTES.md ]; then
             echo "Found RELEASE_NOTES.md"
-            # Use a unique delimiter that won't appear in release notes
-            DELIMITER="RELEASE_NOTES_END_MARKER_$(date +%s)"
-            {
-              echo "notes<<$DELIMITER"
-              cat RELEASE_NOTES.md
-              echo "$DELIMITER"
-            } >> $GITHUB_OUTPUT
+            # Base64 encode to avoid delimiter issues
+            NOTES_CONTENT=$(base64 -w0 < RELEASE_NOTES.md)
+            echo "notes_base64=$NOTES_CONTENT" >> $GITHUB_OUTPUT
           else
             echo "No RELEASE_NOTES.md found, generating from git log"
             
             # Get previous tag
             PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
             
-            # Use a unique delimiter that won't appear in release notes
-            DELIMITER="RELEASE_NOTES_END_MARKER_$(date +%s)"
+            # Generate release notes to a temp file first
+            TEMP_NOTES=$(mktemp)
             {
-              echo "notes<<$DELIMITER"
               echo "# Release ${{ github.ref_name }}"
               echo ""
               echo "Release Date: $(date +%Y-%m-%d)"
@@ -235,9 +230,25 @@ jobs:
               echo ""
               echo "### Container Binary"
               echo "Download the standalone container binary from the release artifacts below."
-              echo "$DELIMITER"
-            } >> $GITHUB_OUTPUT
+            } > "$TEMP_NOTES"
+            
+            # Base64 encode to avoid delimiter issues
+            NOTES_CONTENT=$(base64 -w0 < "$TEMP_NOTES")
+            echo "notes_base64=$NOTES_CONTENT" >> $GITHUB_OUTPUT
+            rm "$TEMP_NOTES"
           fi
+          
+      - name: Decode release notes
+        id: decode_notes
+        run: |
+          # Decode the base64 content back to text
+          echo "${{ steps.release_notes.outputs.notes_base64 }}" | base64 -d > release_notes_decoded.txt
+          # Read it into a variable using a safe delimiter
+          {
+            echo 'notes<<GITHUB_RELEASE_NOTES_END'
+            cat release_notes_decoded.txt
+            echo 'GITHUB_RELEASE_NOTES_END'
+          } >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -245,7 +256,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: LogGuardian ${{ github.ref_name }}
           body: |
-            ${{ steps.release_notes.outputs.notes }}
+            ${{ steps.decode_notes.outputs.notes }}
             
             ## Checksums
             ```
