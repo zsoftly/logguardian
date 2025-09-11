@@ -2,8 +2,6 @@
 
 **Release Date:** September 11, 2025
 
-## Overview
-
 LogGuardian is an enterprise-grade AWS CloudWatch log compliance automation tool that ensures log groups meet security and retention requirements.
 
 This release can be deployed as:
@@ -11,34 +9,58 @@ This release can be deployed as:
 - AWS Lambda function for serverless deployments
 - Standalone container binary
 
-## 🚀 New Features
-- feat: Add Docker container support and update documentation
-- feat: Add usage information to command line arguments for LogGuardian container
-- feat: Enhance CI workflow with Docker build and test steps; add pre-commit script for local checks
-- feat: Implement ServiceAdapter with retry logic and rate limiting; add tests for service adapter functionality
-- Add dry-run compliance service and related tests
+## What's New
 
-## 🐛 Bug Fixes
-- fix: Update AWS region for dry-run container execution
-- fix: Improve batch size parsing and handle errors gracefully
+### Docker Container Support
+- Deploy LogGuardian as a Docker container on ECS, Kubernetes, or standalone
+- Multi-architecture support (amd64/arm64)
+- Published to GitHub Container Registry at `ghcr.io/zsoftly/logguardian`
 
-## 🔧 Other Changes
-- docs: Update containerization design document to reflect service adapter implementation details and authentication strategies
-- docs: Update containerization design document with implementation status and decision dates
-- docs: Update upgrade guide with detailed CLI change set review steps and parameter preservation instructions
-- docs: Enhance CLI update instructions with change set review process
-- docs: Update Terraform deployment examples and add warning for production validation
+### Service Adapter Implementation
+- Retry logic with exponential backoff for AWS API calls
+- Rate limiting to prevent throttling
+- Multiple authentication strategies with fallback
+- Thread-safe operations
+
+### Developer Improvements
+- Pre-commit validation script
+- Enhanced CI/CD pipeline with Docker builds
+- Improved error handling and CLI help
+
+## Bug Fixes
+- Fixed AWS region handling in dry-run mode
+- Improved batch size parsing and validation
 
 ## Installation
 
-### Docker (Recommended)
+### Docker
 ```bash
 docker pull ghcr.io/zsoftly/logguardian:v1.4.0
 ```
 
-### AWS Lambda
-Download the Lambda deployment package (logguardian-compliance-v1.4.0.zip) from the release artifacts.
+### Lambda
+Download `logguardian-compliance-v1.4.0.zip` from release artifacts.
 
-### Container Binary
-Download the standalone container binary (logguardian-container-v1.4.0) from the release artifacts.
+### Binary
+Download `logguardian-container-v1.4.0` from release artifacts.
 
+## Quick Start
+
+```bash
+# Docker with dry-run
+docker run --rm \
+  -e AWS_REGION=ca-central-1 \
+  -e CONFIG_RULE_NAME=logguardian-log-retention \
+  -e DRY_RUN=true \
+  ghcr.io/zsoftly/logguardian:v1.4.0
+
+# Lambda deployment
+aws lambda update-function-code \
+  --function-name logguardian-compliance \
+  --zip-file fileb://logguardian-compliance-v1.4.0.zip
+```
+
+## Documentation
+
+- [Docker Usage Guide](docs/docker-usage.md)
+- [Architecture Overview](docs/architecture-overview.md)
