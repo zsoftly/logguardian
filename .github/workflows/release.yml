@@ -89,6 +89,7 @@ jobs:
 
   publish-docker:
     name: Publish Docker Image
+    needs: build-container
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -175,11 +176,12 @@ jobs:
         run: |
           if [ -f RELEASE_NOTES.md ]; then
             echo "Found RELEASE_NOTES.md"
-            # GitHub Actions has issues with multiline strings, so we use a delimiter
+            # Use a unique delimiter that won't appear in release notes
+            DELIMITER="RELEASE_NOTES_END_MARKER_$(date +%s)"
             {
-              echo 'notes<<EOF'
+              echo "notes<<$DELIMITER"
               cat RELEASE_NOTES.md
-              echo 'EOF'
+              echo "$DELIMITER"
             } >> $GITHUB_OUTPUT
           else
             echo "No RELEASE_NOTES.md found, generating from git log"
@@ -187,8 +189,10 @@ jobs:
             # Get previous tag
             PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
             
+            # Use a unique delimiter that won't appear in release notes
+            DELIMITER="RELEASE_NOTES_END_MARKER_$(date +%s)"
             {
-              echo 'notes<<EOF'
+              echo "notes<<$DELIMITER"
               echo "# Release ${{ github.ref_name }}"
               echo ""
               echo "Release Date: $(date +%Y-%m-%d)"
@@ -231,7 +235,7 @@ jobs:
               echo ""
               echo "### Container Binary"
               echo "Download the standalone container binary from the release artifacts below."
-              echo 'EOF'
+              echo "$DELIMITER"
             } >> $GITHUB_OUTPUT
           fi
 
