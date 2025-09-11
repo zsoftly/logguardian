@@ -200,7 +200,7 @@ jobs:
           docker run --rm \
             -e APP_VERSION=ci-test-${{ github.sha }} \
             logguardian:ci-${{ github.sha }} \
-            --help | grep -q "LogGuardian" && echo "✅ Container version check passed"
+            --help 2>&1 | grep -q "LogGuardian" && echo "✅ Container version check passed"
 
       - name: Scan Docker image for vulnerabilities
         uses: aquasecurity/trivy-action@master

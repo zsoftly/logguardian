@@ -4,39 +4,22 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release'
-        required: true
-        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
 
 env:
   GO_VERSION: '1.24'
 
 jobs:
-  # Create GitHub release with artifacts
-  release:
-    name: Create Release
+  build-lambda:
+    name: Build Lambda Function
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get tag name
-        id: get_tag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag_name=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -44,89 +27,267 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Run tests
-        run: go test -v ./...
-
-      - name: Build Lambda function
+      - name: Build Lambda binary
         run: |
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
-            -ldflags="-s -w -X main.version=${{ steps.get_tag.outputs.tag_name }}" \
+            -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
             -o build/bootstrap \
             ./cmd/lambda
 
-      - name: Create deployment packages
+      - name: Create Lambda deployment package
         run: |
           mkdir -p dist
-          
-          # Create Lambda deployment package
-          cd build && zip -r ../dist/logguardian-compliance-${{ steps.get_tag.outputs.tag_name }}.zip bootstrap
+          cd build && zip -r ../dist/logguardian-compliance.zip bootstrap
           cd ..
+          # Also create a versioned copy
+          cp dist/logguardian-compliance.zip dist/logguardian-compliance-${{ github.ref_name }}.zip
+
+      - name: Upload Lambda artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-package
+          path: |
+            dist/logguardian-compliance.zip
+            dist/logguardian-compliance-${{ github.ref_name }}.zip
+
+  build-container:
+    name: Build Container Binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build container binary
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+            -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -o build/logguardian-container \
+            ./cmd/container
           
-          # Create source archive
-          git archive --format=zip --prefix=logguardian-${{ steps.get_tag.outputs.tag_name }}/ \
-            ${{ steps.get_tag.outputs.tag_name }} > dist/logguardian-source-${{ steps.get_tag.outputs.tag_name }}.zip
+          # Create versioned copy
+          cp build/logguardian-container build/logguardian-container-${{ github.ref_name }}
+
+      - name: Create tarball
+        run: |
+          tar -czf build/logguardian-container-${{ github.ref_name }}.tar.gz \
+            -C build logguardian-container
+
+      - name: Upload container artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-binary
+          path: |
+            build/logguardian-container
+            build/logguardian-container-${{ github.ref_name }}
+            build/logguardian-container-${{ github.ref_name }}.tar.gz
+
+  publish-docker:
+    name: Publish Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        id: build_and_push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            COMMIT_SHA=${{ github.sha }}
+
+      - name: Generate attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build_and_push.outputs.digest }}
+          push-to-registry: true
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-lambda, build-container, publish-docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-package
+          path: ./artifacts
+
+      - name: Download container artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: container-binary
+          path: ./artifacts
 
       - name: Generate checksums
         run: |
-          cd dist
+          cd artifacts
           sha256sum * > checksums.txt
           cat checksums.txt
 
-      - name: Generate changelog
-        id: changelog
+      - name: Read release notes
+        id: release_notes
         run: |
-          # Get commits since last tag
-          PREV_TAG=$(git describe --tags --abbrev=0 ${{ steps.get_tag.outputs.tag_name }}^ 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            echo "Previous tag: $PREV_TAG"
-            echo "## Changes in ${{ steps.get_tag.outputs.tag_name }}" > changelog.md
-            echo "" >> changelog.md
-            git log --pretty=format:"- %s (%h)" $PREV_TAG..${{ steps.get_tag.outputs.tag_name }} >> changelog.md
+          if [ -f RELEASE_NOTES.md ]; then
+            echo "Found RELEASE_NOTES.md"
+            # GitHub Actions has issues with multiline strings, so we use a delimiter
+            {
+              echo 'notes<<EOF'
+              cat RELEASE_NOTES.md
+              echo 'EOF'
+            } >> $GITHUB_OUTPUT
           else
-            echo "## Initial Release ${{ steps.get_tag.outputs.tag_name }}" > changelog.md
-            echo "" >> changelog.md
-            echo "- Initial release of LogGuardian Go Lambda function" >> changelog.md
+            echo "No RELEASE_NOTES.md found, generating from git log"
+            
+            # Get previous tag
+            PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+            
+            {
+              echo 'notes<<EOF'
+              echo "# Release ${{ github.ref_name }}"
+              echo ""
+              echo "Release Date: $(date +%Y-%m-%d)"
+              echo ""
+              
+              if [ -n "$PREV_TAG" ]; then
+                echo "## Changes since $PREV_TAG"
+                echo ""
+                
+                # Features
+                echo "### 🚀 Features"
+                git log $PREV_TAG..${{ github.ref_name }} --grep="^feat" --pretty=format:"- %s (%h)" || echo "- No new features"
+                echo ""
+                echo ""
+                
+                # Bug fixes
+                echo "### 🐛 Bug Fixes"
+                git log $PREV_TAG..${{ github.ref_name }} --grep="^fix" --pretty=format:"- %s (%h)" || echo "- No bug fixes"
+                echo ""
+                echo ""
+                
+                # Other changes
+                echo "### 🔧 Other Changes"
+                git log $PREV_TAG..${{ github.ref_name }} --grep="^chore\|^docs\|^test\|^refactor" --pretty=format:"- %s (%h)" || echo "- No other changes"
+                echo ""
+              else
+                echo "Initial release of LogGuardian - AWS CloudWatch Log Compliance Automation"
+              fi
+              
+              echo ""
+              echo "## Installation"
+              echo ""
+              echo "### Docker"
+              echo '```bash'
+              echo "docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
+              echo '```'
+              echo ""
+              echo "### Lambda"
+              echo "Download the Lambda deployment package from the release artifacts below."
+              echo ""
+              echo "### Container Binary"
+              echo "Download the standalone container binary from the release artifacts below."
+              echo 'EOF'
+            } >> $GITHUB_OUTPUT
           fi
-          
-          # Use GitHub's recommended heredoc pattern for multiline outputs
-          # Using a unique delimiter to avoid conflicts
-          EOF_MARKER="CHANGELOG_END_$$_$RANDOM"
-          echo "changelog<<$EOF_MARKER" >> $GITHUB_OUTPUT
-          cat changelog.md >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT  # Ensure newline before delimiter
-          echo "$EOF_MARKER" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_tag.outputs.tag_name }}
-          name: LogGuardian ${{ steps.get_tag.outputs.tag_name }}
+          tag_name: ${{ github.ref_name }}
+          name: LogGuardian ${{ github.ref_name }}
           body: |
-            ${{ steps.changelog.outputs.changelog }}
+            ${{ steps.release_notes.outputs.notes }}
             
-            ## Installation
+            ## Checksums
+            ```
+            $(cat artifacts/checksums.txt)
+            ```
             
-            ### AWS Lambda Deployment
+            ## Quick Start
+            
+            ### Docker (Recommended)
             ```bash
-            # Download the deployment package
-            curl -L -o logguardian-compliance.zip \
-              https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.tag_name }}/logguardian-compliance-${{ steps.get_tag.outputs.tag_name }}.zip
+            # Pull and run the container
+            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            docker run --rm ghcr.io/${{ github.repository }}:${{ github.ref_name }} --help
+            ```
             
-            # Deploy with AWS CLI
+            ### AWS Lambda
+            ```bash
+            # Download and deploy
+            curl -L -o logguardian-compliance.zip \
+              https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/logguardian-compliance-${{ github.ref_name }}.zip
+            
             aws lambda update-function-code \
               --function-name logguardian-compliance \
               --zip-file fileb://logguardian-compliance.zip
             ```
             
-            ## Checksums
-            ```
-            $(cat dist/checksums.txt)
-            ```
+            See [Documentation](https://github.com/${{ github.repository }}#documentation--support) for detailed usage instructions.
           draft: false
-          prerelease: ${{ contains(steps.get_tag.outputs.tag_name, 'alpha') || contains(steps.get_tag.outputs.tag_name, 'beta') || contains(steps.get_tag.outputs.tag_name, 'rc') }}
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           files: |
-            dist/logguardian-compliance-${{ steps.get_tag.outputs.tag_name }}.zip
-            dist/logguardian-source-${{ steps.get_tag.outputs.tag_name }}.zip
-            dist/checksums.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            artifacts/logguardian-compliance.zip
+            artifacts/logguardian-compliance-${{ github.ref_name }}.zip
+            artifacts/logguardian-container
+            artifacts/logguardian-container-${{ github.ref_name }}
+            artifacts/logguardian-container-${{ github.ref_name }}.tar.gz
+            artifacts/checksums.txt
+
+      - name: Generate summary
+        run: |
+          echo "## 🎉 Release Published: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Docker Image" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📄 Release Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Lambda Package: logguardian-compliance-${{ github.ref_name }}.zip" >> $GITHUB_STEP_SUMMARY
+          echo "- Container Binary: logguardian-container-${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Docker Registry](https://github.com/${{ github.repository }}/pkgs/container/logguardian)" >> $GITHUB_STEP_SUMMARY
+

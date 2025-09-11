@@ -26,7 +26,25 @@ LogGuardian automatically ensures your AWS CloudWatch log groups meet enterprise
 
 ## Quick Deploy
 
-### AWS Serverless Application Repository (Recommended)
+### Docker Container (New!)
+[![Docker Image](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=for-the-badge&logo=docker)](https://github.com/zsoftly/logguardian/pkgs/container/logguardian)
+
+**Quick Start:**
+```bash
+# Pull and run the container
+docker pull ghcr.io/zsoftly/logguardian:latest
+
+# Run in dry-run mode to preview changes
+docker run --rm \
+  -e AWS_REGION=ca-central-1 \
+  -e CONFIG_RULE_NAME=your-config-rule \
+  -e DRY_RUN=true \
+  ghcr.io/zsoftly/logguardian:latest
+```
+
+See [Docker Usage Guide](docs/docker-usage.md) for authentication options and detailed instructions.
+
+### AWS Serverless Application Repository
 [![Deploy from AWS SAR](https://img.shields.io/badge/Deploy-AWS%20SAR-FF9900?style=for-the-badge&logo=amazon-aws)](https://serverlessrepo.aws.amazon.com/applications/ca-central-1/410129828371/LogGuardian)
 
 **AWS Console:**
@@ -68,12 +86,14 @@ make sam-deploy-dev
 - **Enterprise Ready**: Supports existing infrastructure and custom policies
 - **Multi-Region**: Deploy across multiple AWS regions
 - **Monitoring**: CloudWatch metrics and dashboards
+- **Container Support**: Run as Docker container or AWS Lambda function
 
 ## � Documentation & Support
 
 **📚 Comprehensive Documentation:**
 - **[Problem Statement & Solution](docs/problem-statement-solution.md)** - Detailed problem analysis and solution overview
 - **[Architecture Overview](docs/architecture-overview.md)** - System design and visual diagrams showing how LogGuardian works
+- **[Docker Usage Guide](docs/docker-usage.md)** - Running LogGuardian as a Docker container
 - **[Configuration Parameters](docs/configuration-parameters.md)** - Complete parameter guide with enterprise examples
 - **[Deployment Examples](docs/deployment-examples.md)** - AWS CLI, CloudFormation, and Terraform examples
 - **[Lambda Implementation](docs/architecture-overview.md#lambda-function-)** - Lambda function implementation details
