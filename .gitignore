@@ -52,9 +52,6 @@ Thumbs.db
 .tmp/
 .temp/
 
-# Claude AI files
-CLAUDE.md
-
 # Logs
 *.log
 logs/

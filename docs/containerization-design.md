@@ -7,6 +7,7 @@
 - Docker Compose configuration
 - CLI interface (`cmd/container/main.go`)
 - AWS authentication chain (`internal/container/auth.go`) 
+- Service adapter with retry logic (`internal/container/service_adapter.go`)
 - Config rule processor (`internal/container/processor.go`)
 - Dry-run mode (`internal/container/dryrun.go`)
 - Unit tests for all components
@@ -57,25 +58,34 @@ This pattern enables:
 
 ### 2. Adapter Pattern for AWS Services
 
-An adapter layer will abstract AWS service interactions:
-- **Authentication Adapter**: Handles multiple credential sources
-- **Service Adapter**: Wraps AWS SDK calls with retry logic
-- **Configuration Adapter**: Normalizes configuration from various sources
+An adapter layer abstracts AWS service interactions:
+- **Authentication Adapter**: Handles multiple credential sources (✅ Implemented in `auth.go`)
+- **Service Adapter**: Wraps AWS SDK calls with retry logic (✅ Implemented in `service_adapter.go`)
+  - Exponential backoff with jitter
+  - Rate limiting with token bucket algorithm
+  - Thread-safe throttle detection
+  - Context-aware cancellation
+  - Support for CloudWatch Logs, Config Service, KMS, S3, SSM, SNS, STS
+- **Configuration Adapter**: Normalizes configuration from various sources (Partial - in `service_adapter.go`)
 
 Benefits:
 - Simplified testing with mock adapters
 - Consistent error handling
 - Platform-specific optimizations
+- Thread-safe concurrent operations
 
 ### 3. Strategy Pattern for Authentication
 
-Multiple authentication strategies will be supported through a common interface:
-- **Task Role Strategy**: For ECS/Fargate deployments
-- **Profile Strategy**: For local development
-- **Environment Strategy**: For CI/CD pipelines
-- **Instance Profile Strategy**: For EC2 deployments
+Multiple authentication strategies are supported through a common interface (✅ Implemented in `auth.go`):
+- **Explicit Credentials Strategy**: Direct AWS access keys (Priority 1)
+- **Profile Strategy**: For local development (Priority 2)
+- **Assume Role Strategy**: For cross-account access (Priority 3)
+- **Task Role Strategy**: For ECS/Fargate deployments (Priority 4)
+- **Environment Strategy**: For CI/CD pipelines (Priority 5)
+- **Instance Profile Strategy**: For EC2 deployments (Priority 6)
+- **Default Strategy**: Fallback to SDK credential chain (Priority 99)
 
-The appropriate strategy is selected at runtime based on environment detection.
+The appropriate strategy is selected at runtime based on environment detection and priority order.
 
 ## Design Decisions
 

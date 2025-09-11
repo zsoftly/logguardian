@@ -77,6 +77,7 @@ func parseCommandLineArgs() CommandInput {
 	flag.StringVar(&input.OutputFormat, "output", "json", "Output format: json or text")
 
 	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "LogGuardian Container - AWS Config Compliance Automation\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nEvaluate and remediate AWS Config compliance for CloudWatch Log Groups.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
