@@ -154,13 +154,13 @@ jobs:
           fetch-depth: 0
 
       - name: Download Lambda artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: lambda-package
           path: ./artifacts
 
       - name: Download container artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: container-binary
           path: ./artifacts
