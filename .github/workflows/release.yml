@@ -43,7 +43,7 @@ jobs:
           cp dist/logguardian-compliance.zip dist/logguardian-compliance-${{ github.ref_name }}.zip
 
       - name: Upload Lambda artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: lambda-package
           path: |
@@ -79,7 +79,7 @@ jobs:
             -C build logguardian-container
 
       - name: Upload container artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: container-binary
           path: |
