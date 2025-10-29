@@ -1,0 +1,22 @@
+# Example configuration for using existing infrastructure
+# Copy to terraform.tfvars and customize with your existing resources
+
+environment = "prod"
+aws_region  = "ca-central-1"
+
+# Existing KMS Key
+existing_kms_key_arn = "arn:aws:kms:ca-central-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+kms_key_alias        = "alias/my-existing-logs-key"
+
+# Existing Config Service
+existing_config_bucket   = "my-config-bucket-123456789012-ca-central-1"
+existing_config_role_arn = "arn:aws:iam::123456789012:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig"
+
+# Existing Config Rules
+existing_encryption_config_rule = "cloudwatch-log-group-encrypted"
+existing_retention_config_rule  = "cw-loggroup-retention-period-check"
+
+# Lambda Configuration
+default_retention_days = 90
+log_level              = "INFO"
+owner                  = "Platform-Team"
