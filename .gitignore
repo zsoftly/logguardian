@@ -88,15 +88,16 @@ config/local.yaml
 *.secret.yaml
 *.secrets.yaml
 
-# Terraform state files
+# Terraform
+# State files contain sensitive data and should never be committed
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
-terraform.tfvars
-terraform.tfvars.json
-*.auto.tfvars
-*.auto.tfvars.json
+
+# IMPORTANT: .tfvars files are tracked in version control
+# DO NOT store sensitive data (passwords, keys, secrets) in .tfvars files
+# Use AWS Secrets Manager, Parameter Store, or environment variables for sensitive data
 
 # CloudFormation generated files
 .cfn/

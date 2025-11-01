@@ -19,7 +19,28 @@ The Terraform configuration deploys the following core components:
 
 ### Network Design
 
-By default, the infrastructure is configured to use an account's **default VPC and its public subnets**. This approach simplifies deployment and avoids the need for a NAT Gateway, making it cost-effective and suitable for environments where a custom VPC is not required. For production or environments with specific networking requirements, the VPC and subnet IDs can be customized.
+By default, the infrastructure is configured to use an account's **default VPC and its public subnets** with `assign_public_ip=true`. This approach simplifies deployment and avoids the need for a NAT Gateway, making it cost-effective and suitable for dev/test environments.
+
+**Why Private Subnets Are Not Included:**
+
+Private subnet deployments require significantly more infrastructure that doesn't exist in the default VPC:
+
+- **Private Subnets**: Must be created (default VPC only has public subnets)
+- **NAT Gateway**: Elastic IP + NAT Gateway resources (~$32/month)
+- **Route Tables**: Separate route tables for private subnets
+- **Route Table Associations**: Link private subnets to their route tables
+- **Routes**: Configure 0.0.0.0/0 → NAT Gateway in private route tables
+- **Task Configuration**: Change `assign_public_ip=false` and use private subnets
+
+This adds complexity beyond a basic example. If you need private subnets, please contribute a complete working example via PR.
+
+**Other Advanced Networking (Not Included):**
+
+- **VPC Endpoints**: Interface/Gateway endpoints for AWS services (ECS, ECR, CloudWatch, Config) to eliminate internet egress. Contributions welcome via PR.
+- **Multi-AZ Deployments**: Multiple availability zones with cross-AZ load balancing.
+- **Custom VPC Architecture**: Custom CIDR ranges, transit gateways, VPC peering, etc.
+
+**For custom implementations, please open a PR to share your configuration with the community.**
 
 ## Example Configuration: `dev` Environment
 
@@ -158,9 +179,11 @@ terraform/envs/{environment}/
 
 ## Cost Estimate (dev environment)
 
-- Fargate Spot: ~$15-20/month
-- CloudWatch Logs: ~$1-2/month
-- ECR Storage: <$1/month
-- **Total: ~$20/month**
+Based on weekly schedule (2 runs per week, ~8 hours/month runtime):
 
-Using the default VPC and public subnets saves ~$32/month by avoiding NAT Gateway costs.
+- Fargate Spot (0.25 vCPU, 512 MB): ~$0.10/month
+- CloudWatch Logs (50 MB/month, 30-day retention): $0.00 (Free Tier)
+- ECR Storage (50 MB image): $0.00 (Free Tier)
+- **Total: ~$0.10/month (essentially free under AWS Free Tier)**
+
+**Note**: Private subnet deployments would add ~$32.45/month for NAT Gateway (hourly charges + data transfer).
