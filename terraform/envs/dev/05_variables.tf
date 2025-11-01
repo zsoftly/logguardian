@@ -14,8 +14,9 @@ variable "environment" {
 }
 
 variable "container_image" {
-  description = "Container image URL for LogGuardian"
+  description = "Container image URL for LogGuardian (defaults to current account's ECR)"
   type        = string
+  default     = null
 }
 
 variable "vpc_id" {

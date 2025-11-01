@@ -1,6 +1,9 @@
-region          = "ca-central-1"
-environment     = "dev"
-container_image = "769392325486.dkr.ecr.ca-central-1.amazonaws.com/logguardian:latest"
+region      = "ca-central-1"
+environment = "dev"
+
+# Container image (defaults to current account's ECR if not specified)
+# Uncomment to override:
+# container_image = "123456789012.dkr.ecr.ca-central-1.amazonaws.com/logguardian:latest"
 
 # Network Configuration
 # Default: Uses the default VPC and public subnets

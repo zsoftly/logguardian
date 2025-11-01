@@ -55,29 +55,9 @@ resource "aws_ecs_task_definition" "logguardian" {
   execution_role_arn       = aws_iam_role.execution_role.arn
   task_role_arn            = aws_iam_role.task_role.arn
 
-  container_definitions = jsonencode([{
-    name      = "logguardian"
-    image     = var.container_image
-    essential = true
-
-    environment = [
-      {
-        name  = "AWS_REGION"
-        value = var.region
-      },
-      {
-        name  = "AWS_DEFAULT_REGION"
-        value = var.region
-      }
-    ]
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.logguardian.name
-        "awslogs-region"        = var.region
-        "awslogs-stream-prefix" = "ecs"
-      }
-    }
-  }])
+  container_definitions = templatefile("${path.module}/container_definition.json.tpl", {
+    container_image = local.container_image
+    region          = var.region
+    log_group_name  = aws_cloudwatch_log_group.logguardian.name
+  })
 }

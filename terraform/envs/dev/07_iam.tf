@@ -41,7 +41,7 @@ resource "aws_iam_role_policy" "task_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ConfigAccess"
+        Sid    = "ConfigRuleEvaluation"
         Effect = "Allow"
         Action = [
           "config:DescribeConfigRules",
@@ -52,7 +52,8 @@ resource "aws_iam_role_policy" "task_policy" {
           "config:PutEvaluations"
         ]
         Resource = [
-          "arn:aws:config:${var.region}:${local.account_id}:config-rule/*"
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.encryption_config_rule}",
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.retention_config_rule}"
         ]
       },
       {
@@ -62,7 +63,10 @@ resource "aws_iam_role_policy" "task_policy" {
           "config:PutConfigRule",
           "config:DescribeConfigRules"
         ]
-        Resource = "arn:aws:config:${var.region}:${local.account_id}:config-rule/cw-lg-*"
+        Resource = [
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.encryption_config_rule}",
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.retention_config_rule}"
+        ]
       },
       {
         Sid    = "LogsManagement"
@@ -78,22 +82,44 @@ resource "aws_iam_role_policy" "task_policy" {
         Resource = [
           "arn:aws:logs:${var.region}:${local.account_id}:log-group:*"
         ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.region
+          }
+        }
       },
       {
         Sid      = "CloudWatchMetrics"
         Effect   = "Allow"
         Action   = ["cloudwatch:PutMetricData"]
         Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = "LogGuardian"
+          }
+        }
       },
       {
-        Sid    = "KMSAccess"
+        Sid    = "KMSDescribe"
         Effect = "Allow"
         Action = [
-          "kms:DescribeKey",
+          "kms:DescribeKey"
+        ]
+        Resource = "arn:aws:kms:${var.region}:${local.account_id}:key/*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.region
+          }
+        }
+      },
+      {
+        Sid    = "KMSList"
+        Effect = "Allow"
+        Action = [
           "kms:ListKeys",
           "kms:ListAliases"
         ]
-        Resource = "arn:aws:kms:${var.region}:${local.account_id}:key/*"
+        Resource = "*"
       }
     ]
   })

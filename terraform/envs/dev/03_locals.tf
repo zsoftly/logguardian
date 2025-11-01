@@ -6,4 +6,8 @@ locals {
   name_prefix = "logguardian-${var.environment}"
 
   log_group_name = "/ecs/logguardian-${var.environment}"
+
+  # Default container image uses current account's ECR
+  default_container_image = "${local.account_id}.dkr.ecr.${var.region}.amazonaws.com/logguardian:latest"
+  container_image         = var.container_image != null ? var.container_image : local.default_container_image
 }
