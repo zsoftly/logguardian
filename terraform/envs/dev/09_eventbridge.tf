@@ -21,7 +21,7 @@ resource "aws_cloudwatch_event_target" "encryption_ecs_target" {
     platform_version    = "LATEST"
 
     network_configuration {
-      subnets          = var.subnet_ids
+      subnets          = local.subnet_ids
       security_groups  = [aws_security_group.ecs_tasks.id]
       assign_public_ip = var.assign_public_ip
     }
@@ -61,7 +61,7 @@ resource "aws_cloudwatch_event_target" "retention_ecs_target" {
     platform_version    = "LATEST"
 
     network_configuration {
-      subnets          = var.subnet_ids
+      subnets          = local.subnet_ids
       security_groups  = [aws_security_group.ecs_tasks.id]
       assign_public_ip = var.assign_public_ip
     }
