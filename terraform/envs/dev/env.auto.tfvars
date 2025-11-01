@@ -53,9 +53,11 @@ retention_schedule_expression  = "cron(0 4 ? * SUN *)"
 # encryption_schedule_expression = "cron(0 2 ? * SUN *)"
 # retention_schedule_expression  = "cron(0 2 ? * MON *)"
 
-# Config rule names
-encryption_config_rule = "logguardian-encryption-dev"
-retention_config_rule  = "logguardian-retention-dev"
+# Config rule names are derived from environment automatically
+# Default pattern: logguardian-encryption-{environment}, logguardian-retention-{environment}
+# To override the prefix, uncomment:
+# encryption_config_rule_prefix = "custom-encryption"
+# retention_config_rule_prefix  = "custom-retention"
 
 # Dry Run Mode
 # When true: Only reports violations without making changes (recommended for testing)

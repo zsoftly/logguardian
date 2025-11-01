@@ -10,4 +10,8 @@ locals {
   # Default container image uses current account's ECR
   default_container_image = "${local.account_id}.dkr.ecr.${var.region}.amazonaws.com/logguardian:latest"
   container_image         = var.container_image != null ? var.container_image : local.default_container_image
+
+  # Derive config rule names from environment
+  encryption_config_rule = "${var.encryption_config_rule_prefix}-${var.environment}"
+  retention_config_rule  = "${var.retention_config_rule_prefix}-${var.environment}"
 }

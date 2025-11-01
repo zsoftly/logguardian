@@ -128,16 +128,16 @@ variable "retention_schedule_expression" {
   default     = "cron(0 4 ? * SUN *)"
 }
 
-variable "encryption_config_rule" {
-  description = "AWS Config rule name for encryption compliance"
+variable "encryption_config_rule_prefix" {
+  description = "Prefix for encryption config rule name (will be suffixed with environment)"
   type        = string
-  default     = "logguardian-encryption-dev"
+  default     = "logguardian-encryption"
 }
 
-variable "retention_config_rule" {
-  description = "AWS Config rule name for retention compliance"
+variable "retention_config_rule_prefix" {
+  description = "Prefix for retention config rule name (will be suffixed with environment)"
   type        = string
-  default     = "logguardian-retention-dev"
+  default     = "logguardian-retention"
 }
 
 variable "dry_run" {

@@ -15,4 +15,11 @@ data "aws_subnets" "selected" {
     name   = "map-public-ip-on-launch"
     values = ["true"]
   }
+
+  lifecycle {
+    postcondition {
+      condition     = length(self.ids) > 0
+      error_message = "No public subnets found in VPC ${data.aws_vpc.selected.id}. Please check the VPC configuration or provide subnet IDs manually via the subnet_ids variable."
+    }
+  }
 }

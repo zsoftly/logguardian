@@ -31,7 +31,7 @@ resource "aws_cloudwatch_event_target" "encryption_ecs_target" {
     containerOverrides = [{
       name = "logguardian"
       command = concat(
-        ["--config-rule", var.encryption_config_rule, "--region", var.region],
+        ["--config-rule", local.encryption_config_rule, "--region", var.region],
         var.dry_run ? ["--dry-run"] : []
       )
     }]
@@ -71,7 +71,7 @@ resource "aws_cloudwatch_event_target" "retention_ecs_target" {
     containerOverrides = [{
       name = "logguardian"
       command = concat(
-        ["--config-rule", var.retention_config_rule, "--region", var.region],
+        ["--config-rule", local.retention_config_rule, "--region", var.region],
         var.dry_run ? ["--dry-run"] : []
       )
     }]

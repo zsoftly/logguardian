@@ -52,8 +52,8 @@ resource "aws_iam_role_policy" "task_policy" {
           "config:PutEvaluations"
         ]
         Resource = [
-          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.encryption_config_rule}",
-          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.retention_config_rule}"
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${local.encryption_config_rule}",
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${local.retention_config_rule}"
         ]
       },
       {
@@ -64,8 +64,8 @@ resource "aws_iam_role_policy" "task_policy" {
           "config:DescribeConfigRules"
         ]
         Resource = [
-          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.encryption_config_rule}",
-          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${var.retention_config_rule}"
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${local.encryption_config_rule}",
+          "arn:aws:config:${var.region}:${local.account_id}:config-rule/${local.retention_config_rule}"
         ]
       },
       {
