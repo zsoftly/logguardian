@@ -6,9 +6,9 @@ Streamlined release process for LogGuardian with automated changelog generation,
 
 ## Release Types
 
-- **Major Release (v1.0.0)**: Breaking changes or major features
-- **Minor Release (v0.2.0)**: New features, backwards compatible
-- **Patch Release (v0.1.1)**: Bug fixes and minor improvements
+- **Major Release (1.0.0)**: Breaking changes or major features
+- **Minor Release (0.2.0)**: New features, backwards compatible
+- **Patch Release (0.1.1)**: Bug fixes and minor improvements
 
 ## Release Process
 
@@ -19,8 +19,8 @@ git checkout main
 git pull origin main
 
 # Create release branch
-git checkout -b release/v<version>
-git push -u origin release/v<version>
+git checkout -b release/<version>
+git push -u origin release/<version>
 ```
 
 ### 2. Wait for Auto-Generated Documentation
@@ -36,7 +36,7 @@ git push -u origin release/v<version>
 ### 3. Pull and Review Auto-Generated Changes
 ```bash
 # Pull the auto-generated documentation
-git pull origin release/v<version>
+git pull origin release/<version>
 
 # Review generated files
 cat CHANGELOG.md | head -50
@@ -54,15 +54,15 @@ vim RELEASE_NOTES.md
 
 # Commit any manual changes
 git add .
-git commit -m "docs: Finalize release notes for v<version>"
-git push origin release/v<version>
+git commit -m "docs: Finalize release notes for <version>"
+git push origin release/<version>
 ```
 
 ### 5. Create Release Tag
 ```bash
 # Create and push tag - triggers release workflows
-git tag -a v<version> -m "Release v<version>"
-git push origin v<version>
+git tag -a <version> -m "Release <version>"
+git push origin <version>
 ```
 
 This triggers:
@@ -76,11 +76,11 @@ Wait for all workflows to complete, then verify:
 
 ```bash
 # Check Docker image
-docker pull ghcr.io/zsoftly/logguardian:v<version>
-docker run --rm ghcr.io/zsoftly/logguardian:v<version> --help
+docker pull ghcr.io/zsoftly/logguardian:<version>
+docker run --rm ghcr.io/zsoftly/logguardian:<version> --help
 
 # Check GitHub Release
-gh release view v<version>
+gh release view <version>
 
 # Check AWS SAR (if applicable)
 aws serverlessrepo get-application \
@@ -92,12 +92,12 @@ aws serverlessrepo get-application \
 ```bash
 # After successful release
 git checkout main
-git merge --no-ff release/v<version>
+git merge --no-ff release/<version>
 git push origin main
 
 # Delete release branch
-git push origin --delete release/v<version>
-git branch -d release/v<version>
+git push origin --delete release/<version>
+git branch -d release/<version>
 ```
 
 ## Automated Release Artifacts
@@ -105,9 +105,9 @@ git branch -d release/v<version>
 ### Docker Images (ghcr.io)
 Published automatically with tags:
 - `ghcr.io/zsoftly/logguardian:latest` (main branch)
-- `ghcr.io/zsoftly/logguardian:v<version>` (release tag)
-- `ghcr.io/zsoftly/logguardian:<major>` (e.g., v1)
-- `ghcr.io/zsoftly/logguardian:<major>.<minor>` (e.g., v1.2)
+- `ghcr.io/zsoftly/logguardian:<version>` (release tag)
+- `ghcr.io/zsoftly/logguardian:<major>` (e.g., 1)
+- `ghcr.io/zsoftly/logguardian:<major>.<minor>` (e.g., 1.2)
 
 ### Lambda Deployment Package
 - `logguardian-compliance.zip` attached to GitHub Release
@@ -127,19 +127,19 @@ Published automatically with tags:
 - [ ] CLAUDE.md updated with any new patterns
 
 ### Release Steps
-- [ ] Create release branch: `git checkout -b release/v<version>`
-- [ ] Push branch: `git push -u origin release/v<version>`
+- [ ] Create release branch: `git checkout -b release/<version>`
+- [ ] Push branch: `git push -u origin release/<version>`
 - [ ] **Wait for auto-generation workflow**
-- [ ] Pull changes: `git pull origin release/v<version>`
+- [ ] Pull changes: `git pull origin release/<version>`
 - [ ] Review CHANGELOG.md and RELEASE_NOTES.md
-- [ ] Create tag: `git tag -a v<version> -m "Release v<version>"`
-- [ ] Push tag: `git push origin v<version>`
+- [ ] Create tag: `git tag -a <version> -m "Release <version>"`
+- [ ] Push tag: `git push origin <version>`
 - [ ] **Wait for release workflows to complete**
-- [ ] Verify Docker image: `docker pull ghcr.io/zsoftly/logguardian:v<version>`
+- [ ] Verify Docker image: `docker pull ghcr.io/zsoftly/logguardian:<version>`
 - [ ] Verify GitHub Release artifacts
-- [ ] Merge to main: `git checkout main && git merge --no-ff release/v<version>`
+- [ ] Merge to main: `git checkout main && git merge --no-ff release/<version>`
 - [ ] Push main: `git push origin main`
-- [ ] Delete release branch: `git push origin --delete release/v<version>`
+- [ ] Delete release branch: `git push origin --delete release/<version>`
 
 ### Post-Release
 - [ ] Announce release in discussions/social media
@@ -152,20 +152,20 @@ For critical issues that can't wait:
 
 ```bash
 # Create hotfix from last release
-git checkout v<last-version>
-git checkout -b hotfix/v<hotfix-version>
+git checkout <last-version>
+git checkout -b hotfix/<hotfix-version>
 
 # Apply minimal fix
 # ... make changes ...
 git commit -m "fix: Critical issue description"
 
 # Create hotfix tag
-git tag -a v<hotfix-version> -m "Hotfix v<hotfix-version>"
-git push origin v<hotfix-version>
+git tag -a <hotfix-version> -m "Hotfix <hotfix-version>"
+git push origin <hotfix-version>
 
 # After release, merge to main
 git checkout main
-git merge --no-ff hotfix/v<hotfix-version>
+git merge --no-ff hotfix/<hotfix-version>
 git push origin main
 ```
 
@@ -219,12 +219,12 @@ If issues are discovered post-release:
 
 ```bash
 # Revert Docker latest tag to previous version
-docker pull ghcr.io/zsoftly/logguardian:v<previous-version>
-docker tag ghcr.io/zsoftly/logguardian:v<previous-version> ghcr.io/zsoftly/logguardian:latest
+docker pull ghcr.io/zsoftly/logguardian:<previous-version>
+docker tag ghcr.io/zsoftly/logguardian:<previous-version> ghcr.io/zsoftly/logguardian:latest
 docker push ghcr.io/zsoftly/logguardian:latest
 
 # Create GitHub announcement
-gh release edit v<version> --notes "⚠️ This release has been superseded. Please use v<previous-version>"
+gh release edit <version> --notes "⚠️ This release has been superseded. Please use <previous-version>"
 
 # Fix issues and create new patch release
 ```
@@ -233,7 +233,7 @@ gh release edit v<version> --notes "⚠️ This release has been superseded. Ple
 
 ### Release Notes Template
 ```markdown
-## LogGuardian v<version>
+## LogGuardian <version>
 
 ### 🎉 Highlights
 - Major feature or improvement
@@ -247,7 +247,7 @@ gh release edit v<version> --notes "⚠️ This release has been superseded. Ple
 ### 📦 Installation
 ```bash
 # Docker
-docker pull ghcr.io/zsoftly/logguardian:v<version>
+docker pull ghcr.io/zsoftly/logguardian:<version>
 
 # Lambda
 Download from GitHub Release artifacts

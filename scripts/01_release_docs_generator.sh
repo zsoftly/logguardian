@@ -252,43 +252,43 @@ generate_changelog() {
 }
 
 update_version_files() {
-    local version_no_v="${VERSION#v}"  # Remove 'v' prefix if present
-    
-    log_info "Updating version to $VERSION in source files..."
-    
-    # Update VERSION file
-    echo "$VERSION" > VERSION
-    log_info "Updated VERSION file"
-    
+    local clean_version="${VERSION#v}"  # Strip 'v' prefix if present (for convenience)
+
+    log_info "Updating version to $clean_version in source files..."
+
+    # Update VERSION file (pure semantic versioning)
+    echo "$clean_version" > VERSION
+    log_info "Updated VERSION file to $clean_version"
+
     # Update Lambda version if the const exists
     if [[ -f cmd/lambda/main.go ]] && grep -q 'const version = ' cmd/lambda/main.go 2>/dev/null; then
-        sed -i "s/const version = .*/const version = \"${VERSION}\"/" cmd/lambda/main.go
+        sed -i "s/const version = .*/const version = \"${clean_version}\"/" cmd/lambda/main.go
         log_info "Updated Lambda version in cmd/lambda/main.go"
         debug_log "Lambda version line: $(grep 'const version = ' cmd/lambda/main.go)"
     fi
-    
+
     # Update Container version if the var exists
     if [[ -f cmd/container/main.go ]] && grep -q 'var version = ' cmd/container/main.go 2>/dev/null; then
-        sed -i "s/var version = .*/var version = \"${VERSION}\"/" cmd/container/main.go
+        sed -i "s/var version = .*/var version = \"${clean_version}\"/" cmd/container/main.go
         log_info "Updated Container version in cmd/container/main.go"
         debug_log "Container version line: $(grep 'var version = ' cmd/container/main.go)"
     fi
-    
-    # Update SAM template if it exists
+
+    # Update SAM template if it exists (same format, no conversion needed)
     if [[ -f template.yaml ]]; then
-        sed -i "s/SemanticVersion: .*/SemanticVersion: ${version_no_v}/" template.yaml
-        log_info "Updated template.yaml with version $version_no_v"
+        sed -i "s/SemanticVersion: .*/SemanticVersion: ${clean_version}/" template.yaml
+        log_info "Updated template.yaml with version $clean_version"
     fi
-    
+
     if [[ -f template.yml ]]; then
-        sed -i "s/SemanticVersion: .*/SemanticVersion: ${version_no_v}/" template.yml
-        log_info "Updated template.yml with version $version_no_v"
+        sed -i "s/SemanticVersion: .*/SemanticVersion: ${clean_version}/" template.yml
+        log_info "Updated template.yml with version $clean_version"
     fi
-    
+
     # Update Makefile if VERSION variable exists
     if [[ -f Makefile ]] && grep -q '^VERSION ?=' Makefile 2>/dev/null; then
-        sed -i "s/^VERSION ?=.*/VERSION ?= ${VERSION}/" Makefile
-        log_info "Updated Makefile with version $VERSION"
+        sed -i "s/^VERSION ?=.*/VERSION ?= ${clean_version}/" Makefile
+        log_info "Updated Makefile with version $clean_version"
     fi
 }
 
@@ -403,34 +403,34 @@ check_existing_files() {
 
 # Commit generated changes
 commit_changes() {
-    local version="${VERSION}"
-    
+    local clean_version="${VERSION#v}"  # Strip 'v' prefix if present
+
     log_info "Committing generated changes..."
-    
+
     # Configure git if needed
     if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
     fi
-    
+
     # Add all potentially modified files
     git add -A CHANGELOG.md RELEASE_NOTES.md VERSION 2>/dev/null || true
     git add -A cmd/lambda/main.go cmd/container/main.go 2>/dev/null || true
     git add -A template.yaml template.yml Makefile 2>/dev/null || true
-    
+
     if git diff --staged --quiet; then
         log_info "No changes to commit"
         return 1
     else
-        git commit -m "docs: Auto-generate release documentation for ${version}
+        git commit -m "docs: Auto-generate release documentation for ${clean_version}
 
 - Generated CHANGELOG.md from commit history
-- Created RELEASE_NOTES.md with installation instructions  
-- Updated VERSION file to ${version}
+- Created RELEASE_NOTES.md with installation instructions
+- Updated VERSION file to ${clean_version}
 - Updated version strings in source files"
-        
+
         log_info "Changes committed successfully"
-        
+
         # Push if in GitHub Actions
         if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
             git push
@@ -442,20 +442,20 @@ commit_changes() {
 
 # Generate GitHub Actions summary
 generate_github_summary() {
-    local version="${VERSION}"
+    local clean_version="${VERSION#v}"  # Strip 'v' prefix if present
     local branch="${GITHUB_REF#refs/heads/}"
-    
+
     # Only generate summary if running in GitHub Actions
     if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]; then
         return
     fi
-    
+
     log_info "Generating GitHub Actions summary..."
-    
+
     {
         echo "## 📝 Release Documentation Generated"
         echo ""
-        echo "**Version:** ${version}"
+        echo "**Version:** ${clean_version}"
         echo "**Branch:** ${branch}"
         echo ""
         echo "### Files Updated:"
@@ -470,12 +470,12 @@ generate_github_summary() {
         echo "3. Make any manual edits if needed"
         echo "4. Create and push the release tag:"
         echo "   \`\`\`bash"
-        echo "   git tag -a ${version} -m \"Release ${version}\""
-        echo "   git push origin ${version}"
+        echo "   git tag -a ${clean_version} -m \"Release ${clean_version}\""
+        echo "   git push origin ${clean_version}"
         echo "   \`\`\`"
         echo "5. Merge release branch back to main after release"
     } >> "${GITHUB_STEP_SUMMARY}"
-    
+
     log_info "GitHub summary generated"
 }
 

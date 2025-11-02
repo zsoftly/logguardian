@@ -74,18 +74,18 @@ While still on the release branch, create and push the tag:
 
 ```bash
 # Still on release/X.Y.Z branch
-# Create and push tag (MUST start with 'v' to trigger release pipeline)
-git tag -a vX.Y.Z -m "Release version X.Y.Z
+# Create and push tag (semantic versioning format X.Y.Z)
+git tag -a X.Y.Z -m "Release version X.Y.Z
 
 - List major changes
 - Include any breaking changes
 - Reference issues fixed"
 
-git push origin vX.Y.Z
+git push origin X.Y.Z
 ```
 
-**IMPORTANT:** 
-- Tags MUST start with 'v' (e.g., `v1.2.0`) to trigger the release pipeline
+**IMPORTANT:**
+- Tags use pure semantic versioning format (e.g., `1.2.0`, no "v" prefix)
 - The tag push automatically triggers GitHub Actions to create a release with artifacts
 - Tag is created from the release branch, NOT from main
 
@@ -114,8 +114,8 @@ After the release is complete (tag pushed, SAR published), create a Pull Request
 
 ```bash
 # Create PR using GitHub CLI
-gh pr create --title "Release vX.Y.Z" --body "## Summary
-- Release vX.Y.Z completed
+gh pr create --title "Release X.Y.Z" --body "## Summary
+- Release X.Y.Z completed
 - Tag already created and pushed
 - SAR application already published
 - GitHub Actions release pipeline completed
@@ -149,13 +149,13 @@ After review and approval:
 ## Naming Conventions
 
 ### Branches
-- Release branches: `release/X.Y.Z` (NO 'v' prefix)
+- Release branches: `release/X.Y.Z`
 - Example: `release/1.2.0`
 
 ### Tags
-- Tags: `vX.Y.Z` (MUST have 'v' prefix)
-- Example: `v1.2.0`
-- **Only tags starting with 'v' trigger the release pipeline**
+- Tags: `X.Y.Z` (pure semantic versioning)
+- Example: `1.2.0`
+- **Tags matching pattern `[0-9]+.[0-9]+.[0-9]+` trigger the release pipeline**
 
 ### Version Numbering
 
@@ -170,7 +170,7 @@ We follow semantic versioning (MAJOR.MINOR.PATCH):
 For a standard release (example with version 1.2.0):
 
 ```bash
-# 1. Create release branch from main (no 'v' prefix)
+# 1. Create release branch from main
 git checkout main && git pull origin main
 git checkout -b release/1.2.0
 
@@ -183,10 +183,10 @@ git add -A
 git commit -m "chore: Release version 1.2.0"
 git push origin release/1.2.0
 
-# 4. Create and push tag from release branch (MUST have 'v' prefix)
+# 4. Create and push tag from release branch (semantic versioning)
 # Still on release/1.2.0 branch
-git tag -a v1.2.0 -m "Release version 1.2.0"
-git push origin v1.2.0  # This triggers the release pipeline
+git tag -a 1.2.0 -m "Release version 1.2.0"
+git push origin 1.2.0  # This triggers the release pipeline
 
 # 5. Publish to SAR from release branch
 # First authenticate to dev account and test
@@ -195,7 +195,7 @@ make publish
 make publish
 
 # 6. Create PR to main (after release is complete)
-gh pr create --title "Release v1.2.0" --body "Release completed"
+gh pr create --title "Release 1.2.0" --body "Release completed"
 
 # 7. Wait for review and merge to main
 
@@ -208,8 +208,8 @@ If a release needs to be rolled back:
 
 1. Delete the tag locally and remotely:
 ```bash
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
+git tag -d X.Y.Z
+git push origin :refs/tags/X.Y.Z
 ```
 
 2. Fix the issues
@@ -219,12 +219,16 @@ git push origin :refs/tags/vX.Y.Z
 ## Notes
 
 - The VERSION file is the single source of truth for versioning
-- VERSION file format: **vX.Y.Z** (with "v" prefix) for git tags and general use
-  - Git tags require "v" prefix to trigger release pipeline (e.g., `v1.4.1`)
-  - Makefile automatically strips "v" prefix for AWS SAR (which requires `X.Y.Z` format)
-  - Extraction method: `SEMANTIC_VERSION=$(cat VERSION | sed 's/^v//')` converts `v1.4.1` → `1.4.1` for SAR
+- VERSION file format: **X.Y.Z** (pure semantic versioning, no "v" prefix)
+  - Git tags use same format: `1.4.2` (not `v1.4.2`)
+  - Consistent across all systems: Git, Docker, AWS SAR, Makefiles
+  - No conversion or transformation needed
 - Never use default/fallback versions - VERSION file is required
-- All version references in Makefiles read from VERSION file
+- All version references in Makefiles read directly from VERSION file
 - Documentation uses generic "latest" references to avoid updates
 - Release branches (`release/*`) are kept permanently for audit trail
 - Each release has a corresponding branch showing exactly what was released
+
+## Version Format Migration
+
+**Historical Note:** Prior to v1.4.2, tags used "v" prefix (v1.4.0, v1.4.1). Starting from 1.4.2, we adopted pure semantic versioning (X.Y.Z) to align with Docker/OCI and AWS SAR standards.
