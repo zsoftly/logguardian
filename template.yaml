@@ -12,7 +12,7 @@ Metadata:
     ReadmeUrl: README-SAR.md
     Labels: ['cloudwatch', 'compliance', 'security', 'kms', 'logs']
     HomePageUrl: https://github.com/zsoftly/logguardian
-    SemanticVersion: 1.4.0
+    SemanticVersion: 1.4.1
     SourceCodeUrl: https://github.com/zsoftly/logguardian
 
 Parameters:

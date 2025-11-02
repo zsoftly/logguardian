@@ -219,6 +219,10 @@ git push origin :refs/tags/vX.Y.Z
 ## Notes
 
 - The VERSION file is the single source of truth for versioning
+- VERSION file format: **vX.Y.Z** (with "v" prefix) for git tags and general use
+  - Git tags require "v" prefix to trigger release pipeline (e.g., `v1.4.1`)
+  - Makefile automatically strips "v" prefix for AWS SAR (which requires `X.Y.Z` format)
+  - Extraction method: `SEMANTIC_VERSION=$(cat VERSION | sed 's/^v//')` converts `v1.4.1` → `1.4.1` for SAR
 - Never use default/fallback versions - VERSION file is required
 - All version references in Makefiles read from VERSION file
 - Documentation uses generic "latest" references to avoid updates

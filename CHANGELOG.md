@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.4.1] - 2025-11-02
+
+### Fixed
+- fix: Ensure hermetic tests by clearing and restoring AWS environment variables
+
+### Changed
+- chore: Release v1.4.1
+
+
+## [v1.4.1] - 2025-11-02
+
+### Fixed
+- fix: Ensure hermetic tests by clearing and restoring AWS environment variables
+
+### Changed
+- chore: Update AWS SDK dependencies to latest versions
+  - aws-lambda-go v1.47.0 → v1.50.0
+  - aws-sdk-go-v2 v1.38.0 → v1.39.5
+  - aws-sdk-go-v2/config v1.26.1 → v1.31.16
+  - aws-sdk-go-v2/service/cloudwatch v1.48.0 → v1.52.0
+  - aws-sdk-go-v2/service/cloudwatchlogs v1.29.0 → v1.58.6
+  - aws-sdk-go-v2/service/kms v1.27.0 → v1.47.0
+
 ## [v1.4.0] - 2025-09-11
 
 ### Added

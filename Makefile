@@ -140,13 +140,19 @@ package: build
 	@echo "✅ Packaged template ready: packaged-template.yaml"
 
 # SAM publish to AWS Serverless Application Repository (public)
+# Note: VERSION file contains "vX.Y.Z" format for git tags and general use,
+# but AWS SAR requires semantic version without "v" prefix (X.Y.Z).
+# We extract and strip the "v" prefix using shell parameter expansion.
 .PHONY: publish
 publish: package
 	@echo "Publishing to AWS Serverless Application Repository..."
+	@SEMANTIC_VERSION=$$(cat VERSION | sed 's/^v//'); \
+	echo "VERSION file: $$(cat VERSION)"; \
+	echo "Semantic version for SAR: $$SEMANTIC_VERSION"; \
 	sam publish \
 		--template packaged-template.yaml \
 		--region ca-central-1 \
-		--semantic-version $(VERSION)
+		--semantic-version $$SEMANTIC_VERSION
 	@echo "✅ Application published to SAR"
 
 # Make SAR application public
@@ -169,9 +175,10 @@ deploy-prod:
 	@echo "⚠️  WARNING: This will deploy to your PRODUCTION environment!"
 	@read -p "Are you sure you want to deploy to PRODUCTION? (y/N): " confirm && [ "$$confirm" = "y" ]
 	@echo "Step 1: Get SAR template..."
+	@SEMANTIC_VERSION=$$(cat VERSION | sed 's/^v//'); \
 	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
 		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-		--semantic-version $(VERSION) \
+		--semantic-version $$SEMANTIC_VERSION \
 		--region ca-central-1 \
 		--query 'TemplateUrl' --output text) && \
 	echo "Template URL: $$TEMPLATE_URL" && \
@@ -209,9 +216,10 @@ deploy-prod:
 deploy-dev:
 	@echo "Deploying LogGuardian to DEVELOPMENT account..."
 	@echo "Step 1: Get SAR template..."
+	@SEMANTIC_VERSION=$$(cat VERSION | sed 's/^v//'); \
 	TEMPLATE_URL=$$(aws serverlessrepo create-cloud-formation-template \
 		--application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-		--semantic-version $(VERSION) \
+		--semantic-version $$SEMANTIC_VERSION \
 		--region ca-central-1 \
 		--query 'TemplateUrl' --output text) && \
 	echo "Template URL: $$TEMPLATE_URL" && \

@@ -1,6 +1,8 @@
-# LogGuardian v1.4.0 Release Notes
+# LogGuardian 1.4.1 Release Notes
 
-**Release Date:** September 11, 2025
+**Release Date:** November 02, 2025
+
+## Overview
 
 LogGuardian is an enterprise-grade AWS CloudWatch log compliance automation tool that ensures log groups meet security and retention requirements.
 
@@ -9,58 +11,25 @@ This release can be deployed as:
 - AWS Lambda function for serverless deployments
 - Standalone container binary
 
-## What's New
+## 🚀 New Features
+- No new features in this release
 
-### Docker Container Support
-- Deploy LogGuardian as a Docker container on ECS, Kubernetes, or standalone
-- Multi-architecture support (amd64/arm64)
-- Published to GitHub Container Registry at `ghcr.io/zsoftly/logguardian`
+## 🐛 Bug Fixes
+- fix: Ensure hermetic tests by clearing and restoring AWS environment variables
 
-### Service Adapter Implementation
-- Retry logic with exponential backoff for AWS API calls
-- Rate limiting to prevent throttling
-- Multiple authentication strategies with fallback
-- Thread-safe operations
-
-### Developer Improvements
-- Pre-commit validation script
-- Enhanced CI/CD pipeline with Docker builds
-- Improved error handling and CLI help
-
-## Bug Fixes
-- Fixed AWS region handling in dry-run mode
-- Improved batch size parsing and validation
+## 🔧 Other Changes
+- chore: Release v1.4.1
 
 ## Installation
 
-### Docker
+### Docker (Recommended)
 ```bash
-docker pull ghcr.io/zsoftly/logguardian:v1.4.0
+docker pull ghcr.io/zsoftly/logguardian:1.4.1
 ```
 
-### Lambda
-Download `logguardian-compliance-v1.4.0.zip` from release artifacts.
+### AWS Lambda
+Download the Lambda deployment package (logguardian-compliance-1.4.1.zip) from the release artifacts.
 
-### Binary
-Download `logguardian-container-v1.4.0` from release artifacts.
+### Container Binary
+Download the standalone container binary (logguardian-container-1.4.1) from the release artifacts.
 
-## Quick Start
-
-```bash
-# Docker with dry-run
-docker run --rm \
-  -e AWS_REGION=ca-central-1 \
-  -e CONFIG_RULE_NAME=logguardian-log-retention \
-  -e DRY_RUN=true \
-  ghcr.io/zsoftly/logguardian:v1.4.0
-
-# Lambda deployment
-aws lambda update-function-code \
-  --function-name logguardian-compliance \
-  --zip-file fileb://logguardian-compliance-v1.4.0.zip
-```
-
-## Documentation
-
-- [Docker Usage Guide](docs/docker-usage.md)
-- [Architecture Overview](docs/architecture-overview.md)
