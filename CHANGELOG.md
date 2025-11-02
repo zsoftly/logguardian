@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.1] - 2025-11-02
+
+### Fixed
+- fix: Ensure hermetic tests by clearing and restoring AWS environment variables
+
+### Changed
+- chore: Release v1.4.1
+
+
 ## [v1.4.1] - 2025-11-02
 
 ### Fixed
