@@ -1,52 +1,83 @@
-# Docker Usage Guide
+# Docker Deployment Guide
 
-## Quick Start
+## Prerequisites
 
-### Pull the Image
+- Docker 20.10 or later
+- AWS credentials with appropriate IAM permissions
+
+## Installation
+
+Pull the image directly from GitHub Container Registry:
 
 ```bash
-# Latest version
+docker pull ghcr.io/zsoftly/logguardian:1.4.1
 docker pull ghcr.io/zsoftly/logguardian:latest
-
-# Specific version
-docker pull ghcr.io/zsoftly/logguardian:v1.4.0
 ```
 
-### Run Locally
+No authentication required - the image is publicly accessible.
+
+### Image Tags
+
+| Tag Format | Description | Example |
+|------------|-------------|---------|
+| `X.Y.Z` | Specific version | `1.4.1` |
+| `X.Y` | Latest patch version | `1.4` |
+| `X` | Latest minor version | `1` |
+| `latest` | Latest stable release | `latest` |
+
+**Note**: Docker tags use semantic versioning without the `v` prefix.
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `CONFIG_RULE_NAME` | AWS Config rule name | Yes | - |
+| `AWS_REGION` | AWS region | Yes | - |
+| `BATCH_SIZE` | Resources per batch | No | `10` |
+| `DRY_RUN` | Preview mode | No | `false` |
+
+### Command-Line Options
+
+```
+--config-rule <name>    AWS Config rule name
+--region <region>       AWS region
+--batch-size <n>        Batch size (1-100)
+--dry-run              Enable preview mode
+--profile <name>        AWS profile name
+--assume-role <arn>     IAM role ARN to assume
+--output <format>       Output format (json|text)
+--verbose              Enable debug logging
+```
+
+## Usage
+
+### Local Execution
 
 ```bash
-# Help
-docker run --rm ghcr.io/zsoftly/logguardian:latest --help
-
-# Dry-run mode (preview changes)
+# Preview mode
 docker run --rm \
-  -e AWS_REGION=ca-central-1 \
-  -e CONFIG_RULE_NAME=your-config-rule \
-  -e DRY_RUN=true \
-  ghcr.io/zsoftly/logguardian:latest
+  -v ~/.aws:/home/logguardian/.aws:ro \
+  -e AWS_PROFILE=default \
+  ghcr.io/zsoftly/logguardian:latest \
+  --config-rule cw-lg-retention-min \
+  --region ca-central-1 \
+  --dry-run
 
-# With AWS credentials
+# Production mode
 docker run --rm \
-  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
   -e AWS_REGION=ca-central-1 \
   ghcr.io/zsoftly/logguardian:latest \
-  --config-rule my-config-rule \
+  --config-rule cw-lg-retention-min \
   --batch-size 20
 ```
 
-## Deploy to AWS ECS
+## AWS ECS Deployment
 
-LogGuardian requires two AWS Config rules to be evaluated:
-1. **Retention Compliance** - Ensures log groups have proper retention periods
-2. **Encryption Compliance** - Ensures log groups are encrypted with KMS
-
-You'll need to create two ECS task definitions, one for each rule.
-
-### 1. Create Task Definitions
-
-#### Retention Task Definition
-Create `logguardian-retention-task.json`:
+### Task Definition
 
 ```json
 {
@@ -57,155 +88,100 @@ Create `logguardian-retention-task.json`:
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "containerDefinitions": [
-    {
-      "name": "logguardian",
-      "image": "ghcr.io/zsoftly/logguardian:latest",
-      "essential": true,
-      "environment": [
-        {
-          "name": "CONFIG_RULE_NAME",
-          "value": "logguardian-log-retention"
-        },
-        {
-          "name": "AWS_REGION",
-          "value": "ca-central-1"
-        },
-        {
-          "name": "BATCH_SIZE",
-          "value": "20"
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/logguardian",
-          "awslogs-region": "ca-central-1",
-          "awslogs-stream-prefix": "retention"
-        }
+  "containerDefinitions": [{
+    "name": "logguardian",
+    "image": "ghcr.io/zsoftly/logguardian:1.4.1",
+    "essential": true,
+    "environment": [
+      {"name": "CONFIG_RULE_NAME", "value": "cw-lg-retention-min"},
+      {"name": "AWS_REGION", "value": "ca-central-1"},
+      {"name": "BATCH_SIZE", "value": "20"}
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/ecs/logguardian",
+        "awslogs-region": "ca-central-1",
+        "awslogs-stream-prefix": "retention"
       }
     }
-  ]
+  }]
 }
 ```
 
-#### Encryption Task Definition
-Create `logguardian-encryption-task.json`:
-
-```json
-{
-  "family": "logguardian-encryption",
-  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/logguardian-task-role",
-  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
-  "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "256",
-  "memory": "512",
-  "containerDefinitions": [
-    {
-      "name": "logguardian",
-      "image": "ghcr.io/zsoftly/logguardian:latest",
-      "essential": true,
-      "environment": [
-        {
-          "name": "CONFIG_RULE_NAME",
-          "value": "logguardian-log-encryption"
-        },
-        {
-          "name": "AWS_REGION",
-          "value": "ca-central-1"
-        },
-        {
-          "name": "BATCH_SIZE",
-          "value": "20"
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/logguardian",
-          "awslogs-region": "ca-central-1",
-          "awslogs-stream-prefix": "encryption"
-        }
-      }
-    }
-  ]
-}
-```
-
-### 2. Register Task Definitions
+### Register Task
 
 ```bash
-# Register retention task
 aws ecs register-task-definition \
-  --cli-input-json file://logguardian-retention-task.json \
-  --region ca-central-1
-
-# Register encryption task
-aws ecs register-task-definition \
-  --cli-input-json file://logguardian-encryption-task.json \
+  --cli-input-json file://logguardian-task.json \
   --region ca-central-1
 ```
 
-### 3. Create ECS Cluster (if needed)
+### Schedule with EventBridge
 
 ```bash
-aws ecs create-cluster \
-  --cluster-name logguardian-cluster \
-  --region ca-central-1
-```
-
-### 4. Run as Scheduled Tasks (EventBridge)
-
-```bash
-# Create EventBridge rule for retention check (runs daily at 2 AM UTC)
+# Create schedule rule
 aws events put-rule \
   --name logguardian-retention-daily \
   --schedule-expression "cron(0 2 * * ? *)" \
   --region ca-central-1
 
-# Create EventBridge rule for encryption check (runs daily at 3 AM UTC)
-aws events put-rule \
-  --name logguardian-encryption-daily \
-  --schedule-expression "cron(0 3 * * ? *)" \
-  --region ca-central-1
-
-# Create ECS target for retention rule
+# Add ECS target
 aws events put-targets \
   --rule logguardian-retention-daily \
-  --targets "Id"="1","Arn"="arn:aws:ecs:ca-central-1:ACCOUNT_ID:cluster/logguardian-cluster","RoleArn"="arn:aws:iam::ACCOUNT_ID:role/ecsEventsRole","EcsParameters"="{\"TaskDefinitionArn\":\"arn:aws:ecs:ca-central-1:ACCOUNT_ID:task-definition/logguardian-retention\",\"LaunchType\":\"FARGATE\",\"NetworkConfiguration\":{\"awsvpcConfiguration\":{\"Subnets\":[\"subnet-xxx\"],\"SecurityGroups\":[\"sg-xxx\"],\"AssignPublicIp\":\"ENABLED\"}}}" \
-  --region ca-central-1
-
-# Create ECS target for encryption rule
-aws events put-targets \
-  --rule logguardian-encryption-daily \
-  --targets "Id"="1","Arn"="arn:aws:ecs:ca-central-1:ACCOUNT_ID:cluster/logguardian-cluster","RoleArn"="arn:aws:iam::ACCOUNT_ID:role/ecsEventsRole","EcsParameters"="{\"TaskDefinitionArn\":\"arn:aws:ecs:ca-central-1:ACCOUNT_ID:task-definition/logguardian-encryption\",\"LaunchType\":\"FARGATE\",\"NetworkConfiguration\":{\"awsvpcConfiguration\":{\"Subnets\":[\"subnet-xxx\"],\"SecurityGroups\":[\"sg-xxx\"],\"AssignPublicIp\":\"ENABLED\"}}}" \
+  --targets '{
+    "Id": "1",
+    "Arn": "arn:aws:ecs:ca-central-1:ACCOUNT_ID:cluster/logguardian-cluster",
+    "RoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsEventsRole",
+    "EcsParameters": {
+      "TaskDefinitionArn": "arn:aws:ecs:ca-central-1:ACCOUNT_ID:task-definition/logguardian-retention",
+      "LaunchType": "FARGATE",
+      "NetworkConfiguration": {
+        "awsvpcConfiguration": {
+          "Subnets": ["subnet-xxx"],
+          "SecurityGroups": ["sg-xxx"],
+          "AssignPublicIp": "ENABLED"
+        }
+      }
+    }
+  }' \
   --region ca-central-1
 ```
 
-### 5. Run One-Time Tasks
+### Run On-Demand Task
 
 ```bash
-# Run retention check
 aws ecs run-task \
   --cluster logguardian-cluster \
   --task-definition logguardian-retention \
   --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=ENABLED}" \
   --region ca-central-1
-
-# Run encryption check
-aws ecs run-task \
-  --cluster logguardian-cluster \
-  --task-definition logguardian-encryption \
-  --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=ENABLED}" \
-  --region ca-central-1
 ```
 
-### 6. Create IAM Task Role
+## IAM Permissions
 
-The task needs the same permissions as the Lambda function. Create `logguardian-task-role.json`:
+### Task Execution Role
+
+Required for ECS to pull images and write logs:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Service": "ecs-tasks.amazonaws.com"},
+    "Action": "sts:AssumeRole"
+  }]
+}
+```
+
+Attach AWS managed policies:
+- `arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy`
+
+### Task Role
+
+Required for LogGuardian to access AWS services:
 
 ```json
 {
@@ -213,77 +189,62 @@ The task needs the same permissions as the Lambda function. Create `logguardian-
   "Statement": [
     {
       "Effect": "Allow",
-      "Principal": {
-        "Service": "ecs-tasks.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
+      "Action": [
+        "config:GetComplianceDetailsByConfigRule",
+        "config:PutEvaluations"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:PutRetentionPolicy",
+        "logs:AssociateKmsKey"
+      ],
+      "Resource": "arn:aws:logs:*:*:log-group:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kms:DescribeKey",
+        "kms:CreateGrant",
+        "kms:Decrypt"
+      ],
+      "Resource": "arn:aws:kms:*:*:key/*"
     }
   ]
 }
 ```
 
-Create the role and attach policies:
+## Troubleshooting
+
+### Image Pull Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `manifest unknown` | Invalid tag format | Verify tag format (no `v` prefix) - use `1.4.1` not `v1.4.1` |
+| `not found` | Incorrect image name or tag | Verify image path: `ghcr.io/zsoftly/logguardian:latest` |
+
+### Runtime Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `region is required` | Missing region configuration | Set `AWS_REGION` or use `--region` flag |
+| `config rule name is required` | Missing rule configuration | Set `CONFIG_RULE_NAME` or use `--config-rule` flag |
+| `NoCredentialsError` | Missing AWS credentials | Mount credentials, set environment variables, or use ECS task role |
+
+## Building from Source
 
 ```bash
-# Create role
-aws iam create-role \
-  --role-name logguardian-task-role \
-  --assume-role-policy-document file://logguardian-task-role.json
-
-# Attach policies (same as Lambda function)
-aws iam attach-role-policy \
-  --role-name logguardian-task-role \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSConfigRole
-
-aws iam attach-role-policy \
-  --role-name logguardian-task-role \
-  --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-
-# Add KMS permissions if using encryption
-aws iam put-role-policy \
-  --role-name logguardian-task-role \
-  --policy-name KMSAccess \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Action": [
-          "kms:CreateGrant",
-          "kms:Decrypt",
-          "kms:DescribeKey"
-        ],
-        "Resource": "*"
-      }
-    ]
-  }'
-```
-
-## Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `AWS_REGION` | AWS region | Yes |
-| `CONFIG_RULE_NAME` | Config rule to evaluate | Yes |
-| `BATCH_SIZE` | Resources per batch (1-100) | No (default: 10) |
-| `DRY_RUN` | Preview mode (true/false) | No (default: false) |
-
-## Command Line Options
-
-```bash
---config-rule <name>    Config rule name
---region <region>       AWS region  
---batch-size <1-100>    Batch size
---dry-run              Preview mode
---output <json|text>    Output format
---verbose              Debug logging
-```
-
-## Build Locally
-
-```bash
-# Clone and build
 git clone https://github.com/zsoftly/logguardian.git
 cd logguardian
 docker build -t logguardian:local .
+docker run --rm logguardian:local --help
 ```
+
+## Support
+
+- **Documentation**: https://github.com/zsoftly/logguardian
+- **Issues**: https://github.com/zsoftly/logguardian/issues
+- **Releases**: https://github.com/zsoftly/logguardian/releases
