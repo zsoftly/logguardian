@@ -15,30 +15,33 @@ NEW_VERSION=$1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Validate version format
-if ! echo "$NEW_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
+# Strip 'v' prefix if provided (for convenience)
+VERSION="${NEW_VERSION#v}"
+
+# Validate version format (semantic versioning X.Y.Z)
+if ! echo "$VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
     echo "Error: Version must be in format X.Y.Z (e.g., 1.2.0)"
     exit 1
 fi
 
-echo "Updating version to $NEW_VERSION..."
+echo "Updating version to $VERSION..."
 
-# Update VERSION file
-echo "$NEW_VERSION" > "$PROJECT_ROOT/VERSION"
-echo "✅ Updated VERSION file"
+# Update VERSION file (pure semantic versioning)
+echo "$VERSION" > "$PROJECT_ROOT/VERSION"
+echo "✅ Updated VERSION file to $VERSION"
 
-# Update template.yaml
-sed -i "s/SemanticVersion: .*/SemanticVersion: $NEW_VERSION/" "$PROJECT_ROOT/template.yaml"
-echo "✅ Updated template.yaml"
+# Update template.yaml (same format)
+sed -i "s/SemanticVersion: .*/SemanticVersion: $VERSION/" "$PROJECT_ROOT/template.yaml"
+echo "✅ Updated template.yaml to $VERSION"
 
 echo ""
-echo "Version updated to $NEW_VERSION"
+echo "Version updated to $VERSION"
 echo ""
 echo "Next steps:"
 echo "1. Review the changes: git diff"
-echo "2. Commit: git add -A && git commit -m \"chore: Bump version to $NEW_VERSION\""
+echo "2. Commit: git add -A && git commit -m \"chore: Bump version to $VERSION\""
 echo "3. Build: make build"
 echo "4. Package: make package"
-echo "5. Tag: git tag -a v$NEW_VERSION -m \"Release version $NEW_VERSION\""
-echo "6. Push: git push origin <branch> && git push origin v$NEW_VERSION"
+echo "5. Tag: git tag -a $VERSION -m \"Release version $VERSION\""
+echo "6. Push: git push origin <branch> && git push origin $VERSION"
 echo "7. Publish to SAR: make publish"

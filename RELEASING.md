@@ -5,7 +5,6 @@ This document describes the release process for LogGuardian.
 ## Prerequisites
 
 - AWS CLI configured with access to both dev and prod accounts
-- GitHub CLI (`gh`) installed for creating releases
 - Go 1.24+ installed
 - SAM CLI installed
 - Push access to the repository
@@ -68,28 +67,76 @@ Brief description of changes"
 git push origin release/X.Y.Z
 ```
 
-### 6. Create and Push Tag from Release Branch
+**⚠️ CRITICAL: After pushing, automated documentation generation will run!**
 
-While still on the release branch, create and push the tag:
+### 6. Wait for Automated Documentation Generation
+
+GitHub Actions will automatically:
+- Detect the `release/*` branch
+- Run `scripts/01_release_docs_generator.sh`
+- Generate/update CHANGELOG.md and RELEASE_NOTES.md
+- Commit and push these changes back to your release branch
+
+**You MUST wait for this workflow to complete before proceeding!**
+
+Check workflow status:
+- Navigate to GitHub repository in browser
+- Click "Actions" tab
+- Look for "Auto-Generate Release Documentation" workflow
+- Wait for it to complete (green checkmark)
+
+### 7. Pull and Review Auto-Generated Documentation
+
+**CRITICAL:** Pull the auto-generated changes:
+
+```bash
+# Pull the automated commits
+git pull origin release/X.Y.Z
+
+# Review the generated documentation
+cat CHANGELOG.md | head -50
+cat RELEASE_NOTES.md
+
+# Verify VERSION was updated correctly
+cat VERSION
+```
+
+### 8. Manual Edits (Optional)
+
+If you need to make manual edits to the release notes:
+
+```bash
+# Edit release notes
+vim RELEASE_NOTES.md
+
+# Commit and push your changes
+git add RELEASE_NOTES.md
+git commit -m "docs: Finalize release notes for X.Y.Z"
+git push origin release/X.Y.Z
+```
+
+### 9. Create and Push Tag from Release Branch
+
+**NOW** you can create the tag. While still on the release branch:
 
 ```bash
 # Still on release/X.Y.Z branch
-# Create and push tag (MUST start with 'v' to trigger release pipeline)
-git tag -a vX.Y.Z -m "Release version X.Y.Z
+# Create and push tag (semantic versioning format X.Y.Z)
+git tag -a X.Y.Z -m "Release version X.Y.Z
 
 - List major changes
 - Include any breaking changes
 - Reference issues fixed"
 
-git push origin vX.Y.Z
+git push origin X.Y.Z
 ```
 
-**IMPORTANT:** 
-- Tags MUST start with 'v' (e.g., `v1.2.0`) to trigger the release pipeline
+**IMPORTANT:**
+- Tags use pure semantic versioning format (e.g., `1.2.0`, no "v" prefix)
 - The tag push automatically triggers GitHub Actions to create a release with artifacts
 - Tag is created from the release branch, NOT from main
 
-### 7. Publish to AWS SAR
+### 10. Publish to AWS SAR
 
 From the release branch, first deploy to dev for testing, then to prod:
 
@@ -108,14 +155,21 @@ make publish
 make publish
 ```
 
-### 8. Create PR to Main
+### 11. Create PR to Main
 
 After the release is complete (tag pushed, SAR published), create a Pull Request to main:
 
-```bash
-# Create PR using GitHub CLI
-gh pr create --title "Release vX.Y.Z" --body "## Summary
-- Release vX.Y.Z completed
+**Using GitHub Web UI:**
+1. Navigate to your repository on github.com
+2. Click "Pull requests" tab
+3. Click "New pull request"
+4. Set base: `main`, compare: `release/X.Y.Z`
+5. Click "Create pull request"
+6. Title: `Release X.Y.Z`
+7. Body:
+```
+## Summary
+- Release X.Y.Z completed
 - Tag already created and pushed
 - SAR application already published
 - GitHub Actions release pipeline completed
@@ -127,19 +181,18 @@ gh pr create --title "Release vX.Y.Z" --body "## Summary
 
 ## Release Artifacts
 - GitHub Release: Created via automated pipeline
-- SAR Application: Published to production"
+- SAR Application: Published to production
 ```
+8. Click "Create pull request"
 
-Or use GitHub UI (github.com) to create the PR.
-
-### 9. Merge PR
+### 12. Merge PR
 
 After review and approval:
 - Merge the PR to main (via GitHub UI or CLI)
 - **Note:** Keep the release branch for historical reference (do NOT delete)
 - This merge brings the version changes to main for consistency
 
-### 10. Verify Release
+### 13. Verify Release
 
 - Check GitHub Actions for successful release pipeline
 - Verify GitHub release was created with artifacts
@@ -149,13 +202,13 @@ After review and approval:
 ## Naming Conventions
 
 ### Branches
-- Release branches: `release/X.Y.Z` (NO 'v' prefix)
+- Release branches: `release/X.Y.Z`
 - Example: `release/1.2.0`
 
 ### Tags
-- Tags: `vX.Y.Z` (MUST have 'v' prefix)
-- Example: `v1.2.0`
-- **Only tags starting with 'v' trigger the release pipeline**
+- Tags: `X.Y.Z` (pure semantic versioning)
+- Example: `1.2.0`
+- **Tags matching pattern `[0-9]+.[0-9]+.[0-9]+` trigger the release pipeline**
 
 ### Version Numbering
 
@@ -170,7 +223,7 @@ We follow semantic versioning (MAJOR.MINOR.PATCH):
 For a standard release (example with version 1.2.0):
 
 ```bash
-# 1. Create release branch from main (no 'v' prefix)
+# 1. Create release branch from main
 git checkout main && git pull origin main
 git checkout -b release/1.2.0
 
@@ -183,21 +236,39 @@ git add -A
 git commit -m "chore: Release version 1.2.0"
 git push origin release/1.2.0
 
-# 4. Create and push tag from release branch (MUST have 'v' prefix)
-# Still on release/1.2.0 branch
-git tag -a v1.2.0 -m "Release version 1.2.0"
-git push origin v1.2.0  # This triggers the release pipeline
+# 4. ⚠️ CRITICAL: Wait for automated documentation generation
+# Check GitHub Actions tab in browser:
+# https://github.com/your-org/logguardian/actions
 
-# 5. Publish to SAR from release branch
+# 5. Pull auto-generated CHANGELOG.md and RELEASE_NOTES.md
+git pull origin release/1.2.0
+
+# 6. Review generated documentation
+cat CHANGELOG.md | head -50
+cat RELEASE_NOTES.md
+
+# 7. (Optional) Make manual edits to release notes
+vim RELEASE_NOTES.md
+git add RELEASE_NOTES.md
+git commit -m "docs: Finalize release notes"
+git push origin release/1.2.0
+
+# 8. Create and push tag from release branch (semantic versioning)
+# Still on release/1.2.0 branch
+git tag -a 1.2.0 -m "Release version 1.2.0"
+git push origin 1.2.0  # This triggers the release pipeline
+
+# 9. Publish to SAR from release branch
 # First authenticate to dev account and test
 make publish
 # Verify in dev account, then authenticate to prod account
 make publish
 
-# 6. Create PR to main (after release is complete)
-gh pr create --title "Release v1.2.0" --body "Release completed"
+# 10. Create PR to main (after release is complete)
+# Use GitHub UI: github.com -> Pull requests -> New pull request
+# base: main, compare: release/1.2.0
 
-# 7. Wait for review and merge to main
+# 11. Wait for review and merge to main (via GitHub UI)
 
 # Note: Release branches are kept for historical reference - do NOT delete
 ```
@@ -208,8 +279,8 @@ If a release needs to be rolled back:
 
 1. Delete the tag locally and remotely:
 ```bash
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
+git tag -d X.Y.Z
+git push origin :refs/tags/X.Y.Z
 ```
 
 2. Fix the issues
@@ -219,12 +290,16 @@ git push origin :refs/tags/vX.Y.Z
 ## Notes
 
 - The VERSION file is the single source of truth for versioning
-- VERSION file format: **vX.Y.Z** (with "v" prefix) for git tags and general use
-  - Git tags require "v" prefix to trigger release pipeline (e.g., `v1.4.1`)
-  - Makefile automatically strips "v" prefix for AWS SAR (which requires `X.Y.Z` format)
-  - Extraction method: `SEMANTIC_VERSION=$(cat VERSION | sed 's/^v//')` converts `v1.4.1` → `1.4.1` for SAR
+- VERSION file format: **X.Y.Z** (pure semantic versioning, no "v" prefix)
+  - Git tags use same format: `1.4.2` (not `v1.4.2`)
+  - Consistent across all systems: Git, Docker, AWS SAR, Makefiles
+  - No conversion or transformation needed
 - Never use default/fallback versions - VERSION file is required
-- All version references in Makefiles read from VERSION file
+- All version references in Makefiles read directly from VERSION file
 - Documentation uses generic "latest" references to avoid updates
 - Release branches (`release/*`) are kept permanently for audit trail
 - Each release has a corresponding branch showing exactly what was released
+
+## Version Format Migration
+
+**Historical Note:** Prior to v1.4.2, tags used "v" prefix (v1.4.0, v1.4.1). Starting from 1.4.2, we adopted pure semantic versioning (X.Y.Z) to align with Docker/OCI and AWS SAR standards.
