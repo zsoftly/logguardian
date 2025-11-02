@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.2] - 2025-11-02
+
+### Fixed
+- fix: Update VERSION file format to include 'v' prefix for consistency with git tags and AWS SAR requirements
+- fix: Remove v prefix from VERSION file for SAR compatibility
+
+### Changed
+- chore: Bump version to v1.4.2 and update documentation for deployment guide
+- docs: Auto-generate release documentation for 1.4.1
+
+
 ## [1.4.1] - 2025-11-02
 
 ### Fixed
