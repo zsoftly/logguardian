@@ -76,6 +76,12 @@ func TestParseCommandLineArgs(t *testing.T) {
 			// Save original values
 			originalArgs := os.Args
 			originalEnv := map[string]string{}
+			originalAWSRegion := os.Getenv("AWS_REGION")
+			originalAWSDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
+
+			// Clear AWS environment variables to ensure hermetic tests
+			os.Unsetenv("AWS_REGION")
+			os.Unsetenv("AWS_DEFAULT_REGION")
 
 			// Set environment variables
 			for key, value := range tt.envVars {
@@ -113,6 +119,18 @@ func TestParseCommandLineArgs(t *testing.T) {
 				if _, exists := originalEnv[key]; !exists {
 					os.Unsetenv(key)
 				}
+			}
+
+			// Restore AWS environment variables
+			if originalAWSRegion == "" {
+				os.Unsetenv("AWS_REGION")
+			} else {
+				os.Setenv("AWS_REGION", originalAWSRegion)
+			}
+			if originalAWSDefaultRegion == "" {
+				os.Unsetenv("AWS_DEFAULT_REGION")
+			} else {
+				os.Setenv("AWS_DEFAULT_REGION", originalAWSDefaultRegion)
 			}
 		})
 	}
