@@ -79,8 +79,8 @@ Wait for all workflows to complete, then verify:
 docker pull ghcr.io/zsoftly/logguardian:<version>
 docker run --rm ghcr.io/zsoftly/logguardian:<version> --help
 
-# Check GitHub Release
-gh release view <version>
+# Check GitHub Release (in browser)
+# Visit: https://github.com/zsoftly/logguardian/releases/tag/<version>
 
 # Check AWS SAR (if applicable)
 aws serverlessrepo get-application \
@@ -181,8 +181,8 @@ Follow Semantic Versioning (SemVer):
 
 ### Build Failures
 ```bash
-# Check workflow logs
-gh run view --log
+# Check workflow logs in browser
+# Visit: https://github.com/zsoftly/logguardian/actions
 
 # Test locally
 make build
@@ -223,8 +223,10 @@ docker pull ghcr.io/zsoftly/logguardian:<previous-version>
 docker tag ghcr.io/zsoftly/logguardian:<previous-version> ghcr.io/zsoftly/logguardian:latest
 docker push ghcr.io/zsoftly/logguardian:latest
 
-# Create GitHub announcement
-gh release edit <version> --notes "⚠️ This release has been superseded. Please use <previous-version>"
+# Update GitHub Release notes (in browser)
+# Visit: https://github.com/zsoftly/logguardian/releases/tag/<version>
+# Click "Edit release"
+# Update notes: "⚠️ This release has been superseded. Please use <previous-version>"
 
 # Fix issues and create new patch release
 ```

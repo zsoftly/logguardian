@@ -5,7 +5,6 @@ This document describes the release process for LogGuardian.
 ## Prerequisites
 
 - AWS CLI configured with access to both dev and prod accounts
-- GitHub CLI (`gh`) installed for creating releases
 - Go 1.24+ installed
 - SAM CLI installed
 - Push access to the repository
@@ -68,9 +67,57 @@ Brief description of changes"
 git push origin release/X.Y.Z
 ```
 
-### 6. Create and Push Tag from Release Branch
+**⚠️ CRITICAL: After pushing, automated documentation generation will run!**
 
-While still on the release branch, create and push the tag:
+### 6. Wait for Automated Documentation Generation
+
+GitHub Actions will automatically:
+- Detect the `release/*` branch
+- Run `scripts/01_release_docs_generator.sh`
+- Generate/update CHANGELOG.md and RELEASE_NOTES.md
+- Commit and push these changes back to your release branch
+
+**You MUST wait for this workflow to complete before proceeding!**
+
+Check workflow status:
+- Navigate to GitHub repository in browser
+- Click "Actions" tab
+- Look for "Auto-Generate Release Documentation" workflow
+- Wait for it to complete (green checkmark)
+
+### 7. Pull and Review Auto-Generated Documentation
+
+**CRITICAL:** Pull the auto-generated changes:
+
+```bash
+# Pull the automated commits
+git pull origin release/X.Y.Z
+
+# Review the generated documentation
+cat CHANGELOG.md | head -50
+cat RELEASE_NOTES.md
+
+# Verify VERSION was updated correctly
+cat VERSION
+```
+
+### 8. Manual Edits (Optional)
+
+If you need to make manual edits to the release notes:
+
+```bash
+# Edit release notes
+vim RELEASE_NOTES.md
+
+# Commit and push your changes
+git add RELEASE_NOTES.md
+git commit -m "docs: Finalize release notes for X.Y.Z"
+git push origin release/X.Y.Z
+```
+
+### 9. Create and Push Tag from Release Branch
+
+**NOW** you can create the tag. While still on the release branch:
 
 ```bash
 # Still on release/X.Y.Z branch
@@ -89,7 +136,7 @@ git push origin X.Y.Z
 - The tag push automatically triggers GitHub Actions to create a release with artifacts
 - Tag is created from the release branch, NOT from main
 
-### 7. Publish to AWS SAR
+### 10. Publish to AWS SAR
 
 From the release branch, first deploy to dev for testing, then to prod:
 
@@ -108,13 +155,20 @@ make publish
 make publish
 ```
 
-### 8. Create PR to Main
+### 11. Create PR to Main
 
 After the release is complete (tag pushed, SAR published), create a Pull Request to main:
 
-```bash
-# Create PR using GitHub CLI
-gh pr create --title "Release X.Y.Z" --body "## Summary
+**Using GitHub Web UI:**
+1. Navigate to your repository on github.com
+2. Click "Pull requests" tab
+3. Click "New pull request"
+4. Set base: `main`, compare: `release/X.Y.Z`
+5. Click "Create pull request"
+6. Title: `Release X.Y.Z`
+7. Body:
+```
+## Summary
 - Release X.Y.Z completed
 - Tag already created and pushed
 - SAR application already published
@@ -127,19 +181,18 @@ gh pr create --title "Release X.Y.Z" --body "## Summary
 
 ## Release Artifacts
 - GitHub Release: Created via automated pipeline
-- SAR Application: Published to production"
+- SAR Application: Published to production
 ```
+8. Click "Create pull request"
 
-Or use GitHub UI (github.com) to create the PR.
-
-### 9. Merge PR
+### 12. Merge PR
 
 After review and approval:
 - Merge the PR to main (via GitHub UI or CLI)
 - **Note:** Keep the release branch for historical reference (do NOT delete)
 - This merge brings the version changes to main for consistency
 
-### 10. Verify Release
+### 13. Verify Release
 
 - Check GitHub Actions for successful release pipeline
 - Verify GitHub release was created with artifacts
@@ -183,21 +236,39 @@ git add -A
 git commit -m "chore: Release version 1.2.0"
 git push origin release/1.2.0
 
-# 4. Create and push tag from release branch (semantic versioning)
+# 4. ⚠️ CRITICAL: Wait for automated documentation generation
+# Check GitHub Actions tab in browser:
+# https://github.com/your-org/logguardian/actions
+
+# 5. Pull auto-generated CHANGELOG.md and RELEASE_NOTES.md
+git pull origin release/1.2.0
+
+# 6. Review generated documentation
+cat CHANGELOG.md | head -50
+cat RELEASE_NOTES.md
+
+# 7. (Optional) Make manual edits to release notes
+vim RELEASE_NOTES.md
+git add RELEASE_NOTES.md
+git commit -m "docs: Finalize release notes"
+git push origin release/1.2.0
+
+# 8. Create and push tag from release branch (semantic versioning)
 # Still on release/1.2.0 branch
 git tag -a 1.2.0 -m "Release version 1.2.0"
 git push origin 1.2.0  # This triggers the release pipeline
 
-# 5. Publish to SAR from release branch
+# 9. Publish to SAR from release branch
 # First authenticate to dev account and test
 make publish
 # Verify in dev account, then authenticate to prod account
 make publish
 
-# 6. Create PR to main (after release is complete)
-gh pr create --title "Release 1.2.0" --body "Release completed"
+# 10. Create PR to main (after release is complete)
+# Use GitHub UI: github.com -> Pull requests -> New pull request
+# base: main, compare: release/1.2.0
 
-# 7. Wait for review and merge to main
+# 11. Wait for review and merge to main (via GitHub UI)
 
 # Note: Release branches are kept for historical reference - do NOT delete
 ```

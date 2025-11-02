@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.3] - 2025-11-02
+
+### Changed
+- **BREAKING CHANGE**: Standardize on pure semantic versioning (X.Y.Z) without v prefix
+  - Remove v prefix from VERSION file and git tags
+  - Update GitHub Actions workflow trigger pattern to match `[0-9]+.[0-9]+.[0-9]+`
+  - Simplify Makefile by removing sed version conversions
+  - Align with Semantic Versioning spec, Docker/OCI, and AWS SAR standards
+- refactor: Simplify update-version.sh script to use single version format
+- refactor: Simplify scripts/01_release_docs_generator.sh version handling
+- docs: Update RELEASING.md with automated documentation workflow steps
+- docs: Update RELEASE_PROCESS.md to remove GitHub CLI dependencies
+- docs: Remove all `gh` command references, use git and browser UI instead
+
 ## [1.4.2] - 2025-11-02
 
 ### Fixed
