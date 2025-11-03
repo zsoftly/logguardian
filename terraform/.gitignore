@@ -1,0 +1,15 @@
+# Terraform
+# State files contain sensitive data and should never be committed
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+terraform.tfvars.backup
+
+# IMPORTANT: .tfvars files are tracked in version control
+# DO NOT store sensitive data (passwords, keys, secrets) in .tfvars files
+# Use AWS Secrets Manager, Parameter Store, or environment variables for sensitive data
+
+# Sensitive files
+*.pem
+*.key
