@@ -1,8 +1,0 @@
-{
-  "type": "config-rule-evaluation",
-  "configRuleName": "logguardian-encryption-prod",
-  "region": "ca-west-1",
-  "account": "987654321098",
-  "environment": "prod",
-  "batchSize": 50
-}

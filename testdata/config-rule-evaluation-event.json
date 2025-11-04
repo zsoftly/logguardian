@@ -1,8 +1,0 @@
-{
-  "type": "config-rule-evaluation",
-  "configRuleName": "logguardian-encryption-dev",
-  "region": "ca-central-1",
-  "account": "123456789012",
-  "environment": "dev",
-  "batchSize": 10
-}
