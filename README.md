@@ -1,142 +1,336 @@
-# LogGuardian - AWS CloudWatch Log Compliance Automation
+# Go Lambda Testing Framework
 
-**Enterprise-grade automation for CloudWatch log group encryption, retention, and compliance monitoring**
+A standardized, reusable framework for writing **unit tests, benchmarks, and integration tests** for all AWS Lambda functions written in Go.
 
-<!-- Core Status Badges -->
-[![Build Status](https://github.com/zsoftly/logguardian/workflows/CI/badge.svg)](https://github.com/zsoftly/logguardian/actions)
-[![Security Scan](https://img.shields.io/badge/Security-GoSec%20%E2%9C%93-green.svg)](https://github.com/zsoftly/logguardian/actions)
-[![Vulnerabilities](https://img.shields.io/badge/Vulnerabilities-0-brightgreen.svg)](https://github.com/zsoftly/logguardian/actions)
-
-<!-- Technology & Platform -->
-[![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8.svg)](https://golang.org/)
-[![AWS](https://img.shields.io/badge/AWS-CloudWatch-orange.svg)](https://aws.amazon.com/cloudwatch/)
-
-<!-- Legal & Compliance -->
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Security](https://img.shields.io/badge/Security-Compliance-blue.svg)]()
-
-## What LogGuardian Does
-
-LogGuardian automatically ensures your AWS CloudWatch log groups meet enterprise compliance standards:
-
-- **Encryption**: Enforces KMS encryption on all log groups
-- **Retention**: Sets appropriate log retention policies  
-- **Compliance**: Continuous monitoring via AWS Config rules
-- **Automation**: Zero-touch remediation and reporting
-
-## Quick Deploy
-
-### Docker Container (New!)
-[![Docker Image](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=for-the-badge&logo=docker)](https://github.com/zsoftly/logguardian/pkgs/container/logguardian)
-
-**Quick Start:**
-```bash
-# Pull and run the container
-docker pull ghcr.io/zsoftly/logguardian:latest
-
-# Run in dry-run mode to preview changes
-docker run --rm \
-  -e AWS_REGION=ca-central-1 \
-  -e CONFIG_RULE_NAME=your-config-rule \
-  -e DRY_RUN=true \
-  ghcr.io/zsoftly/logguardian:latest
-```
-
-See [Docker Usage Guide](docs/docker-usage.md) for authentication options and detailed instructions.
-
-### AWS Serverless Application Repository
-[![Deploy from AWS SAR](https://img.shields.io/badge/Deploy-AWS%20SAR-FF9900?style=for-the-badge&logo=amazon-aws)](https://serverlessrepo.aws.amazon.com/applications/ca-central-1/410129828371/LogGuardian)
-
-**AWS Console:**
-1. Click "Deploy" button above
-2. Configure parameters as needed
-3. Deploy to your AWS account
-
-**AWS CLI:**
-```bash
-# Get the application (using latest version)
-aws serverlessrepo create-cloud-formation-template \
-  --application-id arn:aws:serverlessrepo:ca-central-1:410129828371:applications/LogGuardian \
-  --region ca-central-1
-
-# Deploy the template
-aws cloudformation deploy \
-  --template-file template.yaml \
-  --stack-name logguardian \
-  --capabilities CAPABILITY_NAMED_IAM
-```
-
-### Manual Deployment
-```bash
-# Clone the repository
-git clone https://github.com/zsoftly/logguardian.git
-cd logguardian
-
-# Build and package Lambda
-make build && make package
-
-# Deploy using AWS SAM
-make sam-deploy-dev
-```
-
-## Key Features
-
-- **Flexible Infrastructure**: Works with new or existing AWS Config, KMS keys, and rules
-- **Automated Scheduling**: EventBridge-based compliance checks
-- **Enterprise Ready**: Supports existing infrastructure and custom policies
-- **Multi-Region**: Deploy across multiple AWS regions
-- **Monitoring**: CloudWatch metrics and dashboards
-- **Container Support**: Run as Docker container or AWS Lambda function
-
-## � Documentation & Support
-
-**📚 Comprehensive Documentation:**
-- **[Problem Statement & Solution](docs/problem-statement-solution.md)** - Detailed problem analysis and solution overview
-- **[Architecture Overview](docs/architecture-overview.md)** - System design and visual diagrams showing how LogGuardian works
-- **[Docker Usage Guide](docs/docker-usage.md)** - Running LogGuardian as a Docker container
-- **[Configuration Parameters](docs/configuration-parameters.md)** - Complete parameter guide with enterprise examples
-- **[Deployment Examples](docs/deployment-examples.md)** - AWS CLI, CloudFormation, and Terraform examples
-- **[Lambda Implementation](docs/architecture-overview.md#lambda-function-)** - Lambda function implementation details
-- **[Config Rule Evaluation](docs/config-rule-evaluation.md)** - Batch processing and compliance analysis
-- **[KMS Encryption Validation](docs/kms-encryption-validation.md)** - KMS key validation and cross-region support
-- **[Local Testing](docs/local-testing.md)** - Comprehensive local Lambda testing with 9+ test scenarios
-- **[Development Guide](docs/development.md)** - Development setup and guidelines
-- **[🚀 Complete Deployment Guide](DEPLOYMENT.md)** - Full deployment instructions
-
-**🆘 Support:**
-- [Report Issues](https://github.com/zsoftly/logguardian/issues)
-- [Discussions](https://github.com/zsoftly/logguardian/discussions)
-
-## Contributing
-
-We welcome contributions! Please see our [Development Guide](docs/development.md) for details.
-
-```bash
-# Clone and setup
-git clone https://github.com/zsoftly/logguardian.git
-cd logguardian
-
-# Install dependencies and run tests
-make test
-```
-
-## Professional Services
-
-Need help with enterprise deployment? **ZSoftly Technologies Inc** provides professional AWS consulting services.
-
-**🌐 [ZSoftly Cloud Services](https://cloud.zsoftly.com/)**
-
-**📞 Contact Information:**
-- **Phone:** +1 (343) 503-0513
-- **Email:** info@zsoftly.com
-- **Address:** 116 Albert Street, Suite 300, Ottawa, Ontario K1P 5G3
-- **Business Hours:** Mon–Fri: 6 AM–10 PM EST
-- **[Book Online Consultation](https://cloud.zsoftly.com/)**
-
-## License
-
-MIT License - see the [LICENSE](LICENSE) file for details.
+It ensures **code quality**, **reliability**, and **automation** across all Lambda projects.
 
 ---
 
-**Built by [ZSoftly Technologies Inc](https://zsoftly.com) | Made in Canada | [Professional Services](https://cloud.zsoftly.com/)**
+## Repository Structure
+
+```
+unit-test/
+├── Makefile                         # Test, coverage, mock, and benchmark commands
+├── go.mod
+├── go.sum                           # Go module + dependency management
+├── .env
+├── assets/
+│ ├── coverage_1_overview.png
+│ └── coverage_2_uncovered_lines.png
+├── coverage.html
+├── coverage.out
+├── internal/
+│   ├── awsiface/                    # AWS SDK interfaces for mocking
+│   │   └── s3.go
+│   ├── handlers/                    # Lambda function logic (with tests)
+│   │   └── sample/
+│   │       ├── handler.go
+│   │       ├── handler_test.go
+│   │       ├── handler_bench_test.go
+│   │       └── handler_integration_test.go
+│   └── testkit/                     # Shared test helpers/utilities
+│       ├── assert.go
+│       └── localstack.go
+├── mocks/                           # Auto-generated mock files
+│   └── mock_s3.go
+├── scripts/                         # Automation scripts
+│   └── coverage_check.sh
+├── testdata/                         # Placeholder for JSON fixtures used in integration tests (kept empty by default for future data-driven tests)
+└── .github/workflows/ci.yml         # CI pipeline (optional)
+
+
+```
+
+---
+
+## Prerequisites
+
+- **Go** 1.21+ (tested with 1.22)
+- **Git** + a shell (Git Bash on Windows)
+- **Mockgen** (for generating mocks)
+
+  ```bash
+  go install github.com/golang/mock/mockgen@v1.6.0
+  echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc && source ~/.bashrc
+
+  ```
+
+- **Optional**: Docker Desktop + LocalStack for integration tests
+
+## Environment Configuration
+
+The framework uses a `.env` file to manage environment variables for both **LocalStack** and **real AWS testing**.
+
+- The default `.env` (included in this repo) contains **safe, mock values** for LocalStack.
+- For real AWS tests, uncomment the “Real AWS Configuration” section and replace with your actual values.
+- ⚠️ Never commit `.env` files containing real AWS credentials or sensitive data.
+
+## Getting Started
+
+## 1️. Install dependencies
+
+```bash
+# Ensure all required modules (including godotenv) are installed
+go get github.com/joho/godotenv@v1.5.1
+go mod tidy
+
+```
+
+## 2. Generate AWS mocks
+
+```bash
+mingw32-make mocks    # Windows
+make mocks            # macOS/Linux
+
+
+```
+
+## 3. Run all unit tests
+
+```bash
+mingw32-make unit
+
+```
+
+Runs all tests
+Generates a coverage report (coverage.out)
+Enforces ≥90% coverage via coverage_check.sh
+
+## 4. Run performance benchmarks (optional)
+
+```bash
+
+mingw32-make bench
+
+```
+
+## 5. View coverage report
+
+```bash
+mingw32-make cover
+```
+
+This command:
+
+- Runs coverage analysis on all test files
+- Generates two reports:
+  - coverage.out → machine-readable coverage data
+  - coverage.html → a visual, browser-friendly report
+
+The coverage.html file is automatically generated in your project root.
+You can open it manually by double-clicking the file or running:
+
+```bash
+go tool cover -html=coverage.out
+
+```
+
+Then view it in your default browser.
+
+### Code Coverage Visualization
+
+![Coverage Overview](./assets/coverage_1_overview.png)
+
+> Coverage report generated after running `mingw32-make cover`.
+
+The report (`coverage.html`) highlights tested and untested lines:
+
+- 🟩 **Green** — code paths covered by tests
+- 🟥 **Red** — untested branches (e.g., error paths or rare failure cases)
+
+![Uncovered Lines](./assets/coverage_2_uncovered_lines.png)
+
+> The untested lines represent **error-handling logic** that only occurs in real AWS environments.  
+> Since these tests run locally with **mocked S3 clients**, those failure scenarios are not expected to trigger.  
+> In integration or production environments, real AWS responses would naturally cover these cases.
+
+---
+
+**Tip:**  
+Open the file manually after running coverage:
+
+```bash
+start coverage.html     # Windows
+open coverage.html      # macOS
+xdg-open coverage.html  # Linux
+
+```
+
+## Running Integration Tests (LocalStack)
+
+### 1. Start LocalStack
+
+    ```bash
+    docker run --rm -it -p 4566:4566 localstack/localstack
+
+    ```
+
+### 2. Run integration tests
+
+Windows (PowerShell):
+
+```powershell
+$env:LOCALSTACK_ENDPOINT="http://localhost:4566"; go test -tags=integration ./...
+
+```
+
+Git Bash/macOS/Linux:
+
+```bash
+LOCALSTACK_ENDPOINT=http://localhost:4566 go test -tags=integration ./...
+
+```
+
+## Acceptance Criteria Mapping
+
+| Requirement                    | How It’s Achieved                               |
+| ------------------------------ | ----------------------------------------------- |
+| **>90% coverage**              | Enforced automatically in `make unit` & CI      |
+| **Mock AWS services**          | Implemented via `internal/awsiface/` + `mocks/` |
+| **Success/failure test cases** | See `handler_test.go`                           |
+| **Performance benchmarks**     | See `handler_bench_test.go`                     |
+| **Integration test helpers**   | See `internal/testkit/localstack.go`            |
+| **Automated testing in CI**    | `.github/workflows/ci.yml`                      |
+
+## Adding a New Lambda
+
+Create a new directory:
+
+```bash
+mkdir -p internal/handlers/<lambda-name>
+
+```
+
+Add:
+handler.go – Lambda logic
+handler_test.go – Unit tests
+handler_bench_test.go – Benchmarks
+
+Then run:
+
+```bash
+mingw32-make mocks
+mingw32-make unit
+
+```
+
+## Adding New AWS Service Interfaces
+
+Example (internal/awsiface/dynamodb.go):
+
+```bash
+
+package awsiface
+
+import (
+  "context"
+  "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+)
+
+type DynamoPutItem interface {
+  PutItem(ctx context.Context, in *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+}
+
+var _ DynamoPutItem = (*dynamodb.Client)(nil)
+
+```
+
+Generate the mock:
+
+```bash
+mingw32-make mocks
+
+```
+
+## Optional Integration Tests (LocalStack)
+
+To test AWS calls locally:
+
+Add internal/testkit/localstack.go:
+
+```bash
+//go:build integration
+package testkit
+// Add constructors for S3, DynamoDB, etc., using LOCALSTACK_ENDPOINT.
+
+```
+
+Run integration tests:
+
+```bash
+
+LOCALSTACK_ENDPOINT=http://localhost:4566 go test -tags=integration ./...
+
+```
+
+## Guardrails (Future Enhancements)
+
+| Guardrail                  | Purpose                                                                             |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| **Branch protection rule** | Require CI to pass and ≥90% coverage before merge                                   |
+| **Lint rule**              | Fail build if a new `internal/handlers/<lambda>` has `.go` files but no `*_test.go` |
+| **Pre-commit hook**        | Auto-run `make mocks` and `make unit` before commits                                |
+
+## Handy Commands (Windows Git Bash)
+
+If make isn’t recognized:
+
+```bash
+echo 'alias make=mingw32-make' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Then you can just use:
+
+```bash
+make mocks
+make unit
+```
+
+## Example Reference
+
+| Component              | File                                             | Purpose                            |
+| ---------------------- | ------------------------------------------------ | ---------------------------------- |
+| **Sample Lambda**      | `internal/handlers/sample/handler.go`            | Core Lambda logic                  |
+| **Unit tests**         | `internal/handlers/sample/handler_test.go`       | Success + failure + mock scenarios |
+| **Benchmark**          | `internal/handlers/sample/handler_bench_test.go` | Performance testing example        |
+| **Mock AWS interface** | `internal/awsiface/s3.go`                        | Mockable S3 client definition      |
+| **Generated mock**     | `mocks/mock_s3.go`                               | Auto-generated via `mockgen`       |
+| **Coverage script**    | `scripts/coverage_check.sh`                      | Enforces ≥90% coverage             |
+| **Test utilities**     | `internal/testkit/assert.go`                     | Reusable assertions                |
+
+## Outcome
+
+This framework ensures:
+
+Consistent Lambda testing patterns across the team
+
+Isolated, reproducible unit tests (no real AWS calls)
+
+Benchmarks for performance awareness
+
+CI/CD enforcement of coverage and quality gates
+
+## Quickstart
+
+## 1. Clone the repo
+
+```bash
+git clone https://github.com/your-org/unit-test.git
+cd unit-test
+
+```
+
+## 2. Generate mocks
+
+```bash
+mingw32-make mocks
+
+```
+
+## 3. Run tests with coverage gate
+
+```bash
+mingw32-make unit
+
+```
