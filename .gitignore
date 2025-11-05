@@ -23,7 +23,8 @@ dist/
 bin/
 
 # Lambda function binaries
-lambda
+/lambda/
+
 main
 logguardian
 
