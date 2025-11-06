@@ -103,7 +103,12 @@ jobs:
           fi
 
       - name: Generate coverage report
-        run: go tool cover -html=coverage.out -o coverage.html
+        run: |
+          if [ -f coverage.out ]; then
+            go tool cover -html=coverage.out -o coverage.html
+          else
+            echo "⚠️ No coverage.out file found — skipping coverage report"
+          fi
 
       # - name: Upload coverage to Codecov
       #   uses: codecov/codecov-action@v4
