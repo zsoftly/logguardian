@@ -87,11 +87,22 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Run tests with Lambda environment
+      - name: Run tests with Lambda environment (diagnose failures)
         env:
           GOOS: linux
           GOARCH: amd64
-        run: go test -v -race -coverprofile=coverage.out ./...
+          CGO_ENABLED: 0
+        run: |
+          set -e
+          if ! go test -v -race -covermode=atomic -coverprofile=coverage.out ./... ; then
+            echo ""
+            echo "🔎 A package failed. Running per-package to locate it..."
+            for p in $(go list ./...); do
+              echo "===== PACKAGE: $p ====="
+              GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -v -race "$p" || exit 1
+            done
+            exit 1
+          fi
 
       - name: Generate coverage report
         run: go tool cover -html=coverage.out -o coverage.html
