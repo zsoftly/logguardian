@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
+    branches: [main, "feature/*", "feat/*", "issue/*", "release/*"]
   pull_request:
-    branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
+    branches: [main, "feature/*", "feat/*", "issue/*", "release/*"]
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: "1.24"
 
 jobs:
   # Lint and code quality checks
@@ -54,7 +54,7 @@ jobs:
       - name: Run GoSec security scan
         uses: securego/gosec@master
         with:
-          args: './...'
+          args: "./..."
         continue-on-error: true
 
       - name: Run Go vulnerability check
@@ -96,12 +96,12 @@ jobs:
       - name: Generate coverage report
         run: go tool cover -html=coverage.out -o coverage.html
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage.out
-          flags: unittests
-          name: codecov-umbrella
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     file: ./coverage.out
+      #     flags: unittests
+      #     name: codecov-umbrella
 
   # Build Lambda function
   build:
@@ -186,7 +186,7 @@ jobs:
             --region us-east-1 \
             --dry-run \
             || EXIT_CODE=$?
-          
+
           # Exit code 1 is expected (no credentials), anything else is a real error
           if [ "${EXIT_CODE:-1}" -ne 1 ]; then
             echo "❌ Unexpected exit code: ${EXIT_CODE:-1}"
@@ -205,10 +205,10 @@ jobs:
       - name: Scan Docker image for vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'logguardian:ci-${{ github.sha }}'
-          format: 'table'
-          exit-code: '0'  # Don't fail the build on vulnerabilities (for now)
-          severity: 'CRITICAL,HIGH'
+          image-ref: "logguardian:ci-${{ github.sha }}"
+          format: "table"
+          exit-code: "0" # Don't fail the build on vulnerabilities (for now)
+          severity: "CRITICAL,HIGH"
 
   # Build container binary separately for artifact upload
   build-container:
