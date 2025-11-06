@@ -1,104 +1,144 @@
+// cmd/lambda/main_test.go
 package main
 
 import (
-	"context"
-	"errors"
-	"strings"
+	"os"
 	"testing"
-
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	"unit-test/mocks"
 )
 
-// Deps mirrors your handler’s external dependencies (S3, config, etc.)
-// In production, these come from main.go — for tests, we inject mocks.
-type Deps struct {
-	S3     *mocks.MockS3PutObject
-	Bucket string
+func TestParseCommandLineArgs(t *testing.T) {
+	t.Run("default_values", func(t *testing.T) {
+		os.Args = []string{"logguardian-lambda"}
+		cfg := parseCommandLineArgs()
+		if cfg.Type != "" || cfg.ConfigRule != "" || cfg.Region != "" || cfg.BatchSize != 0 || cfg.DryRun {
+			t.Fatalf("expected zero-values, got %+v", cfg)
+		}
+	})
+
+	t.Run("with_command_line_args", func(t *testing.T) {
+		os.Args = []string{"logguardian-lambda",
+			"-type", "config-rule-evaluation",
+			"-config-rule", "cloudwatch-log-group-encrypted",
+			"-region", "us-east-1",
+			"-batch-size", "10",
+			"-dry-run",
+		}
+		cfg := parseCommandLineArgs()
+		if cfg.Type != "config-rule-evaluation" ||
+			cfg.ConfigRule != "cloudwatch-log-group-encrypted" ||
+			cfg.Region != "us-east-1" ||
+			cfg.BatchSize != 10 ||
+			!cfg.DryRun {
+			t.Fatalf("unexpected cfg: %+v", cfg)
+		}
+	})
+
+	t.Run("with_environment_variables", func(t *testing.T) {
+		t.Setenv("LG_TYPE", "config-rule-evaluation")
+		t.Setenv("LG_CONFIG_RULE", "r1")
+		t.Setenv("LG_REGION", "eu-west-1")
+		t.Setenv("LG_BATCH_SIZE", "5")
+		t.Setenv("LG_DRY_RUN", "true")
+
+		os.Args = []string{"logguardian-lambda"}
+		cfg := parseCommandLineArgs()
+		if cfg.Type != "config-rule-evaluation" || cfg.ConfigRule != "r1" ||
+			cfg.Region != "eu-west-1" || cfg.BatchSize != 5 || !cfg.DryRun {
+			t.Fatalf("unexpected cfg from env: %+v", cfg)
+		}
+	})
+
+	t.Run("command_line_overrides_environment", func(t *testing.T) {
+		t.Setenv("LG_TYPE", "x")
+		t.Setenv("LG_CONFIG_RULE", "x")
+		t.Setenv("LG_REGION", "x")
+		t.Setenv("LG_BATCH_SIZE", "1")
+		t.Setenv("LG_DRY_RUN", "false")
+
+		os.Args = []string{"logguardian-lambda",
+			"-type", "config-rule-evaluation",
+			"-config-rule", "r2",
+			"-region", "ap-south-1",
+			"-batch-size", "7",
+			"-dry-run",
+		}
+		cfg := parseCommandLineArgs()
+		if cfg.Type != "config-rule-evaluation" || cfg.ConfigRule != "r2" ||
+			cfg.Region != "ap-south-1" || cfg.BatchSize != 7 || !cfg.DryRun {
+			t.Fatalf("override failed: %+v", cfg)
+		}
+	})
 }
 
-// Sample Lambda request input
-type Request struct {
-	ID   string `json:"id"`
-	Data string `json:"data"`
+func TestValidateInput(t *testing.T) {
+	t.Run("valid_input", func(t *testing.T) {
+		cfg := Input{
+			Type:       "config-rule-evaluation",
+			ConfigRule: "cloudwatch-log-group-encrypted",
+			Region:     "us-east-1",
+			BatchSize:  10,
+		}
+		if err := validateInput(cfg); err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("invalid_type", func(t *testing.T) {
+		cfg := Input{Type: "bad"}
+		if err := validateInput(cfg); err == nil {
+			t.Fatal("expected error for invalid type")
+		}
+	})
+
+	t.Run("missing_config_rule_name", func(t *testing.T) {
+		cfg := Input{Type: "config-rule-evaluation", Region: "us-east-1", BatchSize: 10}
+		if err := validateInput(cfg); err == nil {
+			t.Fatal("expected error for missing config rule")
+		}
+	})
+
+	t.Run("missing_region", func(t *testing.T) {
+		cfg := Input{Type: "config-rule-evaluation", ConfigRule: "x", BatchSize: 10}
+		if err := validateInput(cfg); err == nil {
+			t.Fatal("expected error for missing region")
+		}
+	})
+
+	t.Run("invalid_batch_size - zero", func(t *testing.T) {
+		cfg := Input{Type: "config-rule-evaluation", ConfigRule: "x", Region: "us-east-1", BatchSize: 0}
+		if err := validateInput(cfg); err == nil {
+			t.Fatal("expected error for zero batch size")
+		}
+	})
+
+	t.Run("invalid_batch_size - too_large", func(t *testing.T) {
+		cfg := Input{Type: "config-rule-evaluation", ConfigRule: "x", Region: "us-east-1", BatchSize: 10001}
+		if err := validateInput(cfg); err == nil {
+			t.Fatal("expected error for too large batch size")
+		}
+	})
 }
 
-// Mocked process logic for testing (replace with actual handler logic if available)
-func Process(ctx context.Context, d Deps, r Request) (string, error) {
-	if r.ID == "" {
-		return "", errors.New("missing id")
-	}
-	if _, err := d.S3.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: &d.Bucket,
-		Key:    &r.ID,
-		Body:   strings.NewReader(r.Data),
-	}); err != nil {
-		return "", err
-	}
-	return "ok", nil
+func TestGetVersion(t *testing.T) {
+	t.Run("with_version_env_var", func(t *testing.T) {
+		t.Setenv("VERSION", "1.2.3")
+		if v := getVersion(); v != "1.2.3" {
+			t.Fatalf("expected 1.2.3, got %s", v)
+		}
+	})
+	t.Run("without_version_env_var", func(t *testing.T) {
+		os.Unsetenv("VERSION")
+		if v := getVersion(); v == "" {
+			t.Fatal("expected non-empty default/version")
+		}
+	})
 }
 
-func TestLambdaProcess(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	tests := []struct {
-		name      string
-		req       Request
-		mockErr   error
-		wantErr   bool
-	}{
-		{"✅ success", Request{ID: "123", Data: "hello"}, nil, false},
-		{"❌ missing id", Request{Data: "no-id"}, nil, true},
-		{"❌ s3 failure", Request{ID: "x99", Data: "error"}, errors.New("boom"), true},
+func TestGetExecutionMode(t *testing.T) {
+	if !getExecutionMode(true) {
+		t.Fatal("expected dry-run mode when dryRun=true")
 	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			ms3 := mocks.NewMockS3PutObject(ctrl)
-
-			if tc.req.ID != "" {
-				ms3.EXPECT().
-					PutObject(gomock.Any(), gomock.Any()).
-					Return(nil, tc.mockErr)
-			}
-
-			deps := Deps{S3: ms3, Bucket: "test-bucket"}
-
-			got, err := Process(ctx, deps, tc.req)
-
-			if tc.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, "ok", got)
-			}
-		})
-	}
-}
-
-// Benchmark for performance profiling
-func BenchmarkLambdaProcess(b *testing.B) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(b)
-	defer ctrl.Finish()
-
-	ms3 := mocks.NewMockS3PutObject(ctrl)
-	ms3.EXPECT().PutObject(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
-
-	deps := Deps{S3: ms3, Bucket: "bench-bucket"}
-	req := Request{ID: "bench-001", Data: strings.Repeat("x", 2<<20)} // ~2MB
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = Process(ctx, deps, req)
+	if getExecutionMode(false) {
+		t.Fatal("expected apply mode when dryRun=false")
 	}
 }
