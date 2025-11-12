@@ -6,9 +6,17 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.0"
+  }
+}
+
+provider "aws" {
+  default_tags {
+    tags = {
+      Product     = var.product_name
+      Environment = var.environment
+      Owner       = var.owner
+      ManagedBy   = "Terraform"
+      Module      = "LogGuardian"
     }
   }
 }

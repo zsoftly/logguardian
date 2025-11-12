@@ -1,89 +1,141 @@
+# ============================================
 # Lambda Outputs
+# ============================================
+
 output "lambda_function_name" {
   description = "Name of the LogGuardian Lambda function"
-  value       = module.lambda.function_name
+  value       = aws_lambda_function.compliance.function_name
 }
 
 output "lambda_function_arn" {
   description = "ARN of the LogGuardian Lambda function"
-  value       = module.lambda.function_arn
+  value       = aws_lambda_function.compliance.arn
 }
 
-output "lambda_log_group" {
-  description = "CloudWatch Log Group for Lambda logs"
-  value       = module.lambda.log_group_name
+output "lambda_role_arn" {
+  description = "ARN of the Lambda execution role"
+  value       = local.lambda_role_arn
 }
 
+output "lambda_log_group_name" {
+  description = "CloudWatch Log Group name for Lambda function logs"
+  value       = aws_cloudwatch_log_group.lambda.name
+}
+
+# ============================================
 # KMS Outputs
-output "kms_key_arn" {
-  description = "ARN of the KMS key for log encryption"
-  value       = module.kms.kms_key_arn
+# ============================================
+
+output "kms_key_id" {
+  description = "ID of the KMS key used for CloudWatch Logs encryption"
+  value       = local.kms_key_arn
 }
 
 output "kms_key_alias" {
   description = "Alias of the KMS key"
-  value       = module.kms.kms_key_alias
+  value       = var.create_kms_key ? aws_kms_alias.logs[0].name : null
 }
 
+# ============================================
 # Config Outputs
+# ============================================
+
 output "config_bucket_name" {
-  description = "Name of the S3 bucket for AWS Config data"
-  value       = module.storage.config_bucket_name
+  description = "S3 bucket name for AWS Config snapshots"
+  value       = local.config_bucket_name_final
+}
+
+output "config_role_arn" {
+  description = "IAM role ARN for AWS Config service"
+  value       = local.config_role_arn_final
 }
 
 output "encryption_config_rule_name" {
-  description = "Name of the encryption Config rule"
-  value       = local.encryption_config_rule
+  description = "Name of the encryption compliance Config rule"
+  value       = local.encryption_rule_name
 }
 
 output "retention_config_rule_name" {
-  description = "Name of the retention Config rule"
-  value       = local.retention_config_rule
+  description = "Name of the retention compliance Config rule"
+  value       = local.retention_rule_name
 }
 
+# ============================================
 # EventBridge Outputs
+# ============================================
+
 output "encryption_schedule_rule_name" {
-  description = "Name of the encryption schedule EventBridge rule"
-  value       = module.eventbridge.encryption_rule_name
+  description = "Name of the EventBridge rule for encryption checks"
+  value       = var.create_eventbridge_rules ? aws_cloudwatch_event_rule.encryption_schedule[0].name : null
 }
 
 output "retention_schedule_rule_name" {
-  description = "Name of the retention schedule EventBridge rule"
-  value       = module.eventbridge.retention_rule_name
+  description = "Name of the EventBridge rule for retention checks"
+  value       = var.create_eventbridge_rules ? aws_cloudwatch_event_rule.retention_schedule[0].name : null
 }
 
+# ============================================
 # Monitoring Outputs
-output "dashboard_url" {
-  description = "URL to the CloudWatch dashboard"
-  value       = module.monitoring.dashboard_url
-}
+# ============================================
 
 output "dashboard_name" {
   description = "Name of the CloudWatch dashboard"
-  value       = module.monitoring.dashboard_name
+  value       = var.create_monitoring_dashboard ? aws_cloudwatch_dashboard.main[0].dashboard_name : null
 }
 
-# Deployment Summary
-output "deployment_summary" {
-  description = "Summary of what was created vs what was reused"
+output "dashboard_url" {
+  description = "URL to the CloudWatch dashboard"
+  value       = var.create_monitoring_dashboard ? "https://console.aws.amazon.com/cloudwatch/home?region=${local.region}#dashboards:name=${local.dashboard_name}" : null
+}
+
+# ============================================
+# Invocation Outputs
+# ============================================
+
+output "manual_invocation_command" {
+  description = "AWS CLI command to manually invoke LogGuardian for encryption compliance"
+  value       = <<-EOT
+    aws lambda invoke \
+      --function-name ${aws_lambda_function.compliance.function_name} \
+      --payload '{"type":"config-rule-evaluation","configRuleName":"${local.encryption_rule_name}","region":"${local.region}","batchSize":${var.batch_size}}' \
+      --cli-binary-format raw-in-base64-out \
+      response.json
+  EOT
+}
+
+output "test_invocation_payload" {
+  description = "Sample payload for testing LogGuardian Lambda function"
   value = {
-    kms_key         = var.create_kms_key ? "Created" : "Using Existing"
-    config_service  = var.create_config_service ? "Created" : "Using Existing"
-    encryption_rule = var.create_encryption_config_rule ? "Created" : "Using Existing"
-    retention_rule  = var.create_retention_config_rule ? "Created" : "Using Existing"
-    eventbridge     = var.create_eventbridge_rules ? "Created" : "Disabled"
-    dashboard       = var.create_monitoring_dashboard ? "Created" : "Disabled"
+    encryption_check = {
+      type           = "config-rule-evaluation"
+      configRuleName = local.encryption_rule_name
+      region         = local.region
+      batchSize      = var.batch_size
+    }
+    retention_check = {
+      type           = "config-rule-evaluation"
+      configRuleName = local.retention_rule_name
+      region         = local.region
+      batchSize      = var.batch_size
+    }
   }
 }
 
-# Manual Invocation Command
-output "manual_invocation_command" {
-  description = "AWS CLI command to manually invoke the Lambda function"
-  value       = <<-EOT
-    aws lambda invoke \
-      --function-name ${module.lambda.function_name} \
-      --payload '{"type":"config-rule-evaluation","configRuleName":"${local.encryption_config_rule}","region":"${var.aws_region}","batchSize":10}' \
-      response.json \
-      --region ${var.aws_region}
-  EOT
+# ============================================
+# Summary Outputs
+# ============================================
+
+output "deployment_summary" {
+  description = "Summary of the LogGuardian deployment"
+  value = {
+    environment            = var.environment
+    region                 = local.region
+    kms_key_created        = var.create_kms_key
+    config_service_created = var.create_config_service
+    config_rules_created   = var.create_config_rules
+    eventbridge_enabled    = var.create_eventbridge_rules
+    monitoring_enabled     = var.create_monitoring_dashboard
+    lambda_memory_mb       = var.lambda_memory_size
+    default_retention_days = var.default_retention_days
+  }
 }
