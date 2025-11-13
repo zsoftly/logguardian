@@ -181,7 +181,6 @@ pids
 
 # Lambda function artifacts
 bootstrap
-main
 function.zip
 deployment-package.zip
 

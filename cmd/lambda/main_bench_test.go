@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/zsoftly/logguardian/internal/handler"
@@ -45,7 +46,7 @@ func BenchmarkHandleUnifiedRequest_ConfigRuleEvaluation(b *testing.B) {
 	resources := make([]types.NonCompliantResource, 10)
 	for i := range resources {
 		resources[i] = testutil.NewTestNonCompliantResource()
-		resources[i].ResourceName = "/aws/lambda/test-function-" + string(rune(i))
+		resources[i].ResourceName = "/aws/lambda/test-function-" + strconv.Itoa(i)
 	}
 
 	mockService.GetNonCompliantResourcesFunc = func(ctx context.Context, configRuleName string, region string) ([]types.NonCompliantResource, error) {
@@ -82,7 +83,7 @@ func BenchmarkHandleUnifiedRequest_ConfigRuleEvaluation_LargeBatch(b *testing.B)
 	resources := make([]types.NonCompliantResource, 100)
 	for i := range resources {
 		resources[i] = testutil.NewTestNonCompliantResource()
-		resources[i].ResourceName = "/aws/lambda/test-function-" + string(rune(i))
+		resources[i].ResourceName = "/aws/lambda/test-function-" + strconv.Itoa(i)
 	}
 
 	mockService.GetNonCompliantResourcesFunc = func(ctx context.Context, configRuleName string, region string) ([]types.NonCompliantResource, error) {
