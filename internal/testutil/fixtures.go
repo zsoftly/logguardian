@@ -67,7 +67,10 @@ func NewTestComplianceResult() types.ComplianceResult {
 }
 
 // NewTestNonCompliantResource creates a test NonCompliantResource
+// Uses a fixed timestamp for deterministic test behavior and reproducibility.
 func NewTestNonCompliantResource() types.NonCompliantResource {
+	// Use a fixed timestamp for deterministic tests
+	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	return types.NonCompliantResource{
 		ResourceId:     "/aws/lambda/test-function",
 		ResourceType:   "AWS::Logs::LogGroup",
@@ -76,7 +79,7 @@ func NewTestNonCompliantResource() types.NonCompliantResource {
 		AccountId:      "123456789012",
 		ComplianceType: "NON_COMPLIANT",
 		Annotation:     "Log group is not encrypted",
-		LastEvaluated:  time.Now(),
+		LastEvaluated:  fixedTime,
 	}
 }
 

@@ -111,14 +111,12 @@ jobs:
           
           # Calculate Lambda-specific coverage (cmd/lambda + internal/handler)
           # Generate separate coverage file for Lambda packages
-          go test ./cmd/lambda/... ./internal/handler/... -coverprofile=lambda_coverage.out -covermode=atomic 2>/dev/null || true
-          if [ -f lambda_coverage.out ]; then
+          if go test ./cmd/lambda/... ./internal/handler/... -coverprofile=lambda_coverage.out -covermode=atomic 2>&1; then
             LAMBDA_COVERAGE=$(go tool cover -func=lambda_coverage.out | grep total | awk '{print $3}' | sed 's/%//')
             echo "Lambda-specific coverage: ${LAMBDA_COVERAGE}%"
           else
-            # Fallback: calculate from main coverage file
-            LAMBDA_COVERAGE=$(go tool cover -func=coverage.out | grep -E "(cmd/lambda|internal/handler)" | awk '{sum+=$3; count++} END {if(count>0) printf "%.1f", sum/count; else print "0"}' | sed 's/%//')
-            echo "Lambda-specific coverage (calculated): ${LAMBDA_COVERAGE}%"
+            echo "⚠️ Failed to generate Lambda-specific coverage, using overall coverage"
+            LAMBDA_COVERAGE=$OVERALL_COVERAGE
           fi
           
           # Use Lambda-specific coverage for threshold check
@@ -129,9 +127,9 @@ jobs:
           echo "| Metric | Coverage | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|----------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Overall | ${OVERALL_COVERAGE}% | - |" >> $GITHUB_STEP_SUMMARY
-          # Use bash arithmetic instead of bc for portability
-          COVERAGE_INT=$(echo "$COVERAGE" | cut -d. -f1)
-          if [ "${COVERAGE_INT:-0}" -ge 90 ]; then
+          # Use awk for decimal comparison with proper precision
+          COVERAGE_MEETS_90=$(echo "$COVERAGE" | awk '{if ($1 >= 90.0) print "yes"; else print "no"}')
+          if [ "$COVERAGE_MEETS_90" = "yes" ]; then
             echo "| Lambda Functions (cmd/lambda + internal/handler) | ${LAMBDA_COVERAGE}% | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Lambda Functions (cmd/lambda + internal/handler) | ${LAMBDA_COVERAGE}% | ⚠️ Below 90% |" >> $GITHUB_STEP_SUMMARY
@@ -140,15 +138,18 @@ jobs:
           # Check if coverage meets threshold (>90%)
           # Note: main() function in cmd/lambda cannot be tested (calls lambda.Start() which blocks)
           # This is a standard limitation for Lambda entry points
-          COVERAGE_INT=$(echo "$COVERAGE" | cut -d. -f1)
-          if [ -z "$COVERAGE_INT" ] || [ "$COVERAGE_INT" = "0" ]; then
+          COVERAGE_NUMERIC=$(echo "$COVERAGE" | awk '{print $1}')
+          if [ -z "$COVERAGE_NUMERIC" ] || [ "$COVERAGE_NUMERIC" = "0" ]; then
             echo "⚠️ Could not calculate Lambda coverage"
-          elif [ "$COVERAGE_INT" -lt 90 ]; then
-            echo "⚠️ Lambda coverage ${COVERAGE}% is below the 90% threshold"
-            echo "Note: main() function cannot be tested (standard Lambda limitation)"
-            echo "Business logic coverage: handleUnifiedRequest=100%, handler=93.5%"
           else
-            echo "✅ Lambda coverage ${COVERAGE}% meets the 90% threshold"
+            BELOW_90=$(echo "$COVERAGE_NUMERIC" | awk '{if ($1 < 90.0) print "yes"; else print "no"}')
+            if [ "$BELOW_90" = "yes" ]; then
+              echo "⚠️ Lambda coverage ${COVERAGE}% is below the 90% threshold"
+              echo "Note: main() function cannot be tested (standard Lambda limitation)"
+              echo "Business logic coverage: handleUnifiedRequest=100%, handler=93.5%"
+            else
+              echo "✅ Lambda coverage ${COVERAGE}% meets the 90% threshold"
+            fi
           fi
 
       - name: Generate coverage report
@@ -160,7 +161,11 @@ jobs:
       - name: Run performance benchmarks
         run: |
           echo "⚡ Running performance benchmarks..."
-          go test -bench=. -benchmem -run='^$' ./cmd/lambda/... ./internal/handler/... ./internal/service/... 2>&1 | tee benchmark.txt || echo "⚠️ Some benchmarks may have failed (expected for mock scenarios)"
+          go test -bench=. -benchmem -run='^$' ./cmd/lambda/... ./internal/handler/... ./internal/service/... 2>&1 | tee benchmark.txt || {
+            BENCH_EXIT=$?
+            echo "⚠️ Benchmarks exited with code $BENCH_EXIT"
+            echo "This may be expected for mock scenarios, but verify no real issues exist"
+          }
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -172,11 +177,18 @@ jobs:
           
       - name: Check coverage threshold
         run: |
-          COVERAGE=$(echo "${{ steps.coverage.outputs.coverage }}" | cut -d. -f1)
-          if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
+          COVERAGE="${{ steps.coverage.outputs.coverage }}"
+          COVERAGE_NUMERIC=$(echo "$COVERAGE" | awk '{print $1}')
+          if [ -z "$COVERAGE_NUMERIC" ] || [ "$COVERAGE_NUMERIC" = "0" ]; then
             echo "⚠️ Could not calculate Lambda coverage, skipping threshold check"
             exit 0
-          elif [ "$COVERAGE" -lt 85 ]; then
+          fi
+          
+          # Use awk for proper decimal comparison
+          BELOW_85=$(echo "$COVERAGE_NUMERIC" | awk '{if ($1 < 85.0) print "yes"; else print "no"}')
+          BELOW_90=$(echo "$COVERAGE_NUMERIC" | awk '{if ($1 < 90.0) print "yes"; else print "no"}')
+          
+          if [ "$BELOW_85" = "yes" ]; then
             # Fail only if coverage is significantly below threshold
             # 85% is acceptable given that main() cannot be tested (standard Lambda limitation)
             echo "❌ Lambda coverage threshold not met: ${COVERAGE}% < 85%"
@@ -189,7 +201,7 @@ jobs:
               go tool cover -func=coverage.out | grep -E "(cmd/lambda|internal/handler)" || true
             fi
             exit 1
-          elif [ "$COVERAGE" -lt 90 ]; then
+          elif [ "$BELOW_90" = "yes" ]; then
             # Warn if coverage is between 85% and 90%
             echo "⚠️ Lambda coverage ${COVERAGE}% is below 90% target but above 85% minimum"
             echo "Note: main() function cannot be tested (standard Lambda limitation)"

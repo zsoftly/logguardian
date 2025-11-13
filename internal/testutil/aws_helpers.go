@@ -12,24 +12,30 @@ import (
 // SetupTestEnvironment configures the test environment for isolated testing
 // This function should be called at the start of test functions that need
 // a clean environment state.
+//
+// Using t.Setenv (Go 1.17+) automatically saves and restores environment
+// variables after the test completes, ensuring proper cleanup and isolation.
 func SetupTestEnvironment(t *testing.T) {
 	t.Helper()
 	// Clear any AWS-specific environment variables that might interfere
-	// with test execution
-	os.Unsetenv("AWS_REGION")
-	os.Unsetenv("AWS_DEFAULT_REGION")
-	os.Unsetenv("AWS_PROFILE")
-	os.Unsetenv("AWS_ACCESS_KEY_ID")
-	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
-	os.Unsetenv("AWS_SESSION_TOKEN")
+	// with test execution. t.Setenv automatically restores original values
+	// after test completion, preventing side effects in parallel tests.
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
 }
 
-// CleanupTestEnvironment restores the test environment after test execution
-// This function should be called in test cleanup (defer) if SetupTestEnvironment was used.
+// CleanupTestEnvironment is deprecated - cleanup is now automatic via t.Setenv
+// This function is kept for backward compatibility but does nothing.
+//
+// Deprecated: No longer needed as SetupTestEnvironment uses t.Setenv which
+// automatically restores environment variables after test completion.
 func CleanupTestEnvironment(t *testing.T) {
 	t.Helper()
-	// Environment cleanup is typically handled by test isolation
-	// This function exists for symmetry and future extensibility
+	// Cleanup is handled automatically by t.Setenv in SetupTestEnvironment
 }
 
 // NewMockAWSConfig creates a mock AWS config for testing
