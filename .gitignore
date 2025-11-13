@@ -22,10 +22,10 @@ build/
 dist/
 bin/
 
-# Lambda function binaries
-lambda
-main
-logguardian
+# Lambda function binaries (root level only)
+/lambda
+/main
+/logguardian
 
 # Lambda deployment packages
 *.zip
