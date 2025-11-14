@@ -161,11 +161,11 @@ jobs:
       - name: Run performance benchmarks
         run: |
           echo "⚡ Running performance benchmarks..."
-          go test -bench=. -benchmem -run='^$' ./cmd/lambda/... ./internal/handler/... ./internal/service/... 2>&1 | tee benchmark.txt || {
-            BENCH_EXIT=$?
-            echo "⚠️ Benchmarks exited with code $BENCH_EXIT"
-            echo "This may be expected for mock scenarios, but verify no real issues exist"
-          }
+          # Benchmarks use simple mocks and should always pass
+          # Failures indicate real issues (syntax errors, panics, broken code)
+          # so we fail the job on any non-zero exit code
+          go test -bench=. -benchmem -run='^$' ./cmd/lambda/... ./internal/handler/... ./internal/service/... 2>&1 | tee benchmark.txt
+          echo "✅ All benchmarks completed successfully"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

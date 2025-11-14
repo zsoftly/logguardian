@@ -452,6 +452,14 @@ func TestHandleUnifiedRequest_ConfigRuleEvaluation_Success(t *testing.T) {
 	}
 }
 
+// TestInitializeHandler_Success tests the initializeHandler function.
+// This test covers both success and failure scenarios for AWS config loading:
+//   - Success: When AWS credentials are available, handler is created successfully
+//   - Failure: When config.LoadDefaultConfig fails (no credentials in CI/test environments),
+//     the error is properly wrapped with "failed to load AWS config"
+//
+// This ensures proper error handling before Lambda runtime startup as required
+// by the initializeHandler extraction from main().
 func TestInitializeHandler_Success(t *testing.T) {
 	ctx := context.Background()
 
