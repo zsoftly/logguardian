@@ -164,6 +164,8 @@ jobs:
           # Benchmarks use simple mocks and should always pass
           # Failures indicate real issues (syntax errors, panics, broken code)
           # so we fail the job on any non-zero exit code
+          # Use pipefail to ensure go test failures propagate through tee
+          set -o pipefail
           go test -bench=. -benchmem -run='^$' ./cmd/lambda/... ./internal/handler/... ./internal/service/... 2>&1 | tee benchmark.txt
           echo "✅ All benchmarks completed successfully"
 
