@@ -121,7 +121,7 @@ variable "existing_kms_key_arn" {
   default     = null
 
   validation {
-    condition     = var.existing_kms_key_arn == null || can(regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/[a-f0-9-]+$", var.existing_kms_key_arn))
+    condition     = var.existing_kms_key_arn == null || can(regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/[A-Fa-f0-9-]+$", var.existing_kms_key_arn))
     error_message = "KMS key ARN must be a valid ARN format"
   }
 }
@@ -165,7 +165,7 @@ variable "existing_config_service_role_arn" {
   default     = null
 
   validation {
-    condition     = var.existing_config_service_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/.*$", var.existing_config_service_role_arn))
+    condition     = var.existing_config_service_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/[^/]+$", var.existing_config_service_role_arn))
     error_message = "Config service role ARN must be a valid IAM role ARN"
   }
 }
@@ -257,7 +257,7 @@ variable "alarm_sns_topic_arn" {
   default     = null
 
   validation {
-    condition     = var.alarm_sns_topic_arn == null || can(regex("^arn:aws:sns:[a-z0-9-]+:[0-9]{12}:.*$", var.alarm_sns_topic_arn))
+    condition     = var.alarm_sns_topic_arn == null || can(regex("^arn:aws:sns:[A-Za-z0-9-]+:[0-9]{12}:.*$", var.alarm_sns_topic_arn))
     error_message = "SNS topic ARN must be a valid ARN format"
   }
 }
@@ -272,7 +272,7 @@ variable "supported_regions" {
   default     = []
 
   validation {
-    condition     = alltrue([for r in var.supported_regions : can(regex("^[a-z]{2}-[a-z]+-[0-9]{1}$", r))])
+    condition     = alltrue([for r in var.supported_regions : can(regex("^[a-z]{2}-[a-z]+-[0-9]+$", r))])
     error_message = "All regions must be valid AWS region codes (e.g., ca-central-1)"
   }
 }
@@ -287,4 +287,23 @@ variable "additional_tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)
   default     = {}
+}
+
+variable "config_recorder_resource_types" {
+  description = "List of resource types to record in AWS Config. Empty list records all supported types."
+  type        = list(string)
+  default = [
+    "AWS::Logs::LogGroup"
+  ]
+
+  validation {
+    condition = (
+      length(var.config_recorder_resource_types) == 0 ||
+      alltrue([
+        for rt in var.config_recorder_resource_types :
+        can(regex("^AWS::[A-Za-z0-9]+::[A-Za-z0-9]+$", rt))
+      ])
+    )
+    error_message = "Resource types must follow AWS Config format (e.g., 'AWS::Logs::LogGroup'). Use empty list to record all types."
+  }
 }

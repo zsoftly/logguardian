@@ -19,7 +19,7 @@ resource "aws_s3_bucket" "config" {
 resource "aws_s3_bucket_lifecycle_configuration" "config" {
   count = var.create_config_service ? 1 : 0
 
-  bucket = aws_s3_bucket.config[0].id
+  bucket = aws_s3_bucket.config[0].bucket
 
   rule {
     id     = "expire-old-config-snapshots"
@@ -42,7 +42,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "config" {
 resource "aws_s3_bucket_versioning" "config" {
   count = var.create_config_service ? 1 : 0
 
-  bucket = aws_s3_bucket.config[0].id
+  bucket = aws_s3_bucket.config[0].bucket
 
   versioning_configuration {
     status = "Enabled"
@@ -85,7 +85,7 @@ resource "aws_config_configuration_recorder" "main" {
   recording_group {
     all_supported                 = false
     include_global_resource_types = false
-    resource_types                = ["AWS::Logs::LogGroup"]
+    resource_types                = var.config_recorder_resource_types
   }
 }
 
@@ -93,7 +93,7 @@ resource "aws_config_delivery_channel" "main" {
   count = var.create_config_service ? 1 : 0
 
   name           = "${local.name_prefix}-delivery-channel"
-  s3_bucket_name = aws_s3_bucket.config[0].id
+  s3_bucket_name = aws_s3_bucket.config[0].bucket
 
   depends_on = [aws_config_configuration_recorder.main]
 }
@@ -101,7 +101,7 @@ resource "aws_config_delivery_channel" "main" {
 resource "aws_config_configuration_recorder_status" "main" {
   count = var.create_config_service ? 1 : 0
 
-  name       = aws_config_configuration_recorder.main[0].name
+  name       = var.create_config_service ? aws_config_configuration_recorder.main[0].name : ""
   is_enabled = true
 
   depends_on = [aws_config_delivery_channel.main]
@@ -179,7 +179,7 @@ resource "aws_config_config_rule" "retention" {
 resource "aws_config_remediation_configuration" "encryption" {
   count = var.create_config_rules ? 1 : 0
 
-  config_rule_name = aws_config_config_rule.encryption[0].name
+  config_rule_name = var.create_config_rules ? aws_config_config_rule.encryption[0].name : null
   target_type      = "SSM_DOCUMENT"
   target_id        = "AWS-PublishSNSNotification"
   automatic        = false
@@ -198,7 +198,7 @@ resource "aws_config_remediation_configuration" "encryption" {
 resource "aws_config_remediation_configuration" "retention" {
   count = var.create_config_rules ? 1 : 0
 
-  config_rule_name = aws_config_config_rule.retention[0].name
+  config_rule_name = var.create_config_rules ? aws_config_config_rule.retention[0].name : ""
   target_type      = "SSM_DOCUMENT"
   target_id        = "AWS-PublishSNSNotification"
   automatic        = false
