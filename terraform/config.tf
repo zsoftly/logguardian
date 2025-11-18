@@ -37,7 +37,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "config" {
       noncurrent_days = 30
     }
 
-     abort_incomplete_multipart_upload {
+    abort_incomplete_multipart_upload {
       days_after_initiation = 7
     }
   }
@@ -105,7 +105,7 @@ resource "aws_config_delivery_channel" "main" {
 resource "aws_config_configuration_recorder_status" "main" {
   count = var.create_config_service ? 1 : 0
 
-  name       = var.create_config_service ? aws_config_configuration_recorder.main[0].name : null
+  name       = aws_config_configuration_recorder.main[0].name
   is_enabled = true
 
   depends_on = [aws_config_delivery_channel.main]
@@ -179,30 +179,39 @@ resource "aws_config_config_rule" "retention" {
 # ============================================
 # Config Remediation Configuration
 # ============================================
-
+# Remediation uses SNS notification for human review workflow.
+# Automatic remediation is disabled to prevent unintended changes to production log groups.
+# Operations team reviews notifications and manually approves remediation.
 resource "aws_config_remediation_configuration" "encryption" {
-  count = var.create_config_rules ? 1 : 0
+  count = var.create_config_rules && var.alarm_sns_topic_arn != null ? 1 : 0
 
-  config_rule_name = var.create_config_rules ? aws_config_config_rule.encryption[0].name : null
+  config_rule_name = aws_config_config_rule.encryption[0].name
   target_type      = "SSM_DOCUMENT"
   target_id        = "AWS-PublishSNSNotification"
   automatic        = false
 
   parameter {
     name         = "AutomationAssumeRole"
-    static_value = local.lambda_role_arn
+    static_value = local.config_role_arn
   }
 
   parameter {
-    name           = "Message"
-    resource_value = "RESOURCE_ID"
+    name         = "TopicArn"
+    static_value = var.alarm_sns_topic_arn
   }
+
+  parameter {
+    name         = "Message"
+    static_value = "AWS Config Alert: Non-compliant CloudWatch Logs encryption detected."
+  }
+
+  depends_on = [aws_config_config_rule.encryption]
 }
 
 resource "aws_config_remediation_configuration" "retention" {
   count = var.create_config_rules ? 1 : 0
 
-  config_rule_name = var.create_config_rules ? aws_config_config_rule.retention[0].name : null
+  config_rule_name = aws_config_config_rule.retention[0].name
   target_type      = "SSM_DOCUMENT"
   target_id        = "AWS-PublishSNSNotification"
   automatic        = false

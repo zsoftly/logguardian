@@ -9,7 +9,9 @@ readonly RED='\033[0;31m'
 readonly YELLOW='\033[1;33m'
 readonly NC='\033[0m'
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
+readonly SCRIPT_DIR
+
 readonly TF_DIR="${SCRIPT_DIR}/.."
 
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }

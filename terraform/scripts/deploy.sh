@@ -12,6 +12,8 @@ readonly NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
 readonly SCRIPT_DIR
 
+readonly TF_DIR="${SCRIPT_DIR}/.."
+
 log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
