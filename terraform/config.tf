@@ -36,6 +36,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "config" {
     noncurrent_version_expiration {
       noncurrent_days = 30
     }
+
+     abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
 }
 
@@ -101,7 +105,7 @@ resource "aws_config_delivery_channel" "main" {
 resource "aws_config_configuration_recorder_status" "main" {
   count = var.create_config_service ? 1 : 0
 
-  name       = var.create_config_service ? aws_config_configuration_recorder.main[0].name : ""
+  name       = var.create_config_service ? aws_config_configuration_recorder.main[0].name : null
   is_enabled = true
 
   depends_on = [aws_config_delivery_channel.main]
@@ -198,7 +202,7 @@ resource "aws_config_remediation_configuration" "encryption" {
 resource "aws_config_remediation_configuration" "retention" {
   count = var.create_config_rules ? 1 : 0
 
-  config_rule_name = var.create_config_rules ? aws_config_config_rule.retention[0].name : ""
+  config_rule_name = var.create_config_rules ? aws_config_config_rule.retention[0].name : null
   target_type      = "SSM_DOCUMENT"
   target_id        = "AWS-PublishSNSNotification"
   automatic        = false

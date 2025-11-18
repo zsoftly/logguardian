@@ -7,11 +7,10 @@ set -euo pipefail
 
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
 readonly NC='\033[0m'
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly TF_DIR="${SCRIPT_DIR}/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
+readonly SCRIPT_DIR
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
