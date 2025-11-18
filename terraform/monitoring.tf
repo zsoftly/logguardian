@@ -168,7 +168,7 @@ resource "aws_cloudwatch_metric_alarm" "remediation_failures" {
   alarm_name          = "${local.name_prefix}-remediation-failures"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
-  metric_name         = "RemediationFailure"
+  metric_name         = "RemediationErrors"
   namespace           = "LogGuardian"
   period              = 300
   statistic           = "Sum"

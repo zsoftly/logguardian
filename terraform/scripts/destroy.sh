@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-#
 set -euo pipefail
-# LogGuardian Destroy Script
 #
+# LogGuardian Destroy Script
 # Safely removes all LogGuardian infrastructure
 #
-
-set -euo pipefail
 
 readonly RED='\033[0;31m'
 readonly YELLOW='\033[1;33m'

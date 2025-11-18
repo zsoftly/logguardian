@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-#
 set -euo pipefail
+#
 # LogGuardian Deployment
 # Validates and deploys LogGuardian infrastructure
 #
-
-set -euo pipefail
 
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
@@ -36,7 +34,7 @@ validate() {
 }
 
 create_config() {
-    cat > "${TF_DIR}/terraform.tfvars" <<EOF
+    cat > "${TF_DIR}/terraform.tfvars" <<EOFCONFIG
 environment      = "$1"
 lambda_s3_bucket = "$2"
 
@@ -51,3 +49,53 @@ lambda_log_level       = "INFO"
 
 create_monitoring_dashboard = true
 enable_cloudwatch_alarms   = true
+EOFCONFIG
+}
+
+deploy() {
+    cd "${TF_DIR}"
+    
+    log_info "Initializing Terraform..."
+    terraform init -upgrade
+    
+    log_info "Validating configuration..."
+    terraform validate
+    
+    log_info "Creating execution plan..."
+    terraform plan -out=tfplan
+    
+    echo ""
+    read -p "Apply this plan? (yes/no): " confirm
+    [[ "${confirm}" == "yes" ]] || log_error "Deployment cancelled"
+    
+    log_info "Deploying LogGuardian..."
+    terraform apply tfplan
+    rm -f tfplan
+    
+    echo ""
+    log_info "✓ Deployment complete!"
+    echo ""
+    terraform output
+}
+
+main() {
+    local env="${1:-}"
+    local bucket="${2:-}"
+    
+    echo "LogGuardian Deployment"
+    echo "======================"
+    echo ""
+    
+    # Interactive mode if no args
+    if [[ -z "${env}" ]] || [[ -z "${bucket}" ]]; then
+        read -p "Environment (dev/staging/prod/sandbox): " env
+        read -p "S3 Bucket: " bucket
+        echo ""
+    fi
+    
+    validate "${env}" "${bucket}"
+    create_config "${env}" "${bucket}"
+    deploy
+}
+
+main "$@"
