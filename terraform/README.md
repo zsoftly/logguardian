@@ -109,6 +109,7 @@ module "logguardian" {
 | create_monitoring_dashboard | Create CloudWatch dashboard | `bool` | `true` | no |
 | enable_cloudwatch_alarms | Enable CloudWatch alarms | `bool` | `true` | no |
 | alarm_sns_topic_arn | SNS topic ARN for alarms and notifications | `string` | `null` | no |
+| lambda_code_signing_config_arn | Lambda code signing config ARN (security best practice) | `string` | `null` | no |
 | supported_regions | List of AWS regions to manage | `list(string)` | `[]` | no |
 | additional_lambda_env_vars | Additional Lambda environment variables | `map(string)` | `{}` | no |
 | additional_tags | Additional tags for all resources | `map(string)` | `{}` | no |
@@ -138,7 +139,7 @@ module "logguardian" {
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                        EventBridge                               │
 │  ┌──────────────────┐  ┌──────────────────┐                     │

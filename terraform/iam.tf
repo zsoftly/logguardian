@@ -75,7 +75,12 @@ resource "aws_iam_role_policy" "lambda_logguardian" {
 }
 
 data "aws_iam_policy_document" "lambda_logguardian" {
-  # CloudWatch Logs permissions
+  # CloudWatch Logs read permissions
+  # Note: resources = ["*"] is required because AWS IAM does not support
+  # resource-level permissions for DescribeLogGroups, ListTagsLogGroup,
+  # and DescribeSubscriptionFilters actions. This is an AWS limitation,
+  # not over-permissioning. These are read-only discovery operations.
+  # Reference: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatchlogs.html
   statement {
     sid    = "CloudWatchLogsRead"
     effect = "Allow"
@@ -114,6 +119,10 @@ data "aws_iam_policy_document" "lambda_logguardian" {
   }
 
   # AWS Config permissions
+  # Note: resources = ["*"] is required because AWS Config API actions
+  # (GetComplianceDetailsByConfigRule, DescribeConfigRules, PutEvaluations)
+  # do not support resource-level IAM restrictions. This is an AWS limitation.
+  # Reference: https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsconfig.html
   statement {
     sid    = "ConfigRead"
     effect = "Allow"

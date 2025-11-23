@@ -22,6 +22,9 @@ resource "aws_lambda_function" "compliance" {
   # IAM role - referenced from iam.tf via locals
   role = local.lambda_role_arn
 
+  # Code signing - security best practice for production (optional)
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   # Environment variables
   environment {
     variables = local.lambda_env_vars

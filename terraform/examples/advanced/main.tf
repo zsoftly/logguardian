@@ -18,9 +18,10 @@ provider "aws" {
   region = "ca-central-1"
 }
 
-# SNS Topic for alerts
+# SNS Topic for alerts (encrypted at rest - security best practice)
 resource "aws_sns_topic" "alerts" {
-  name = "logguardian-alerts"
+  name              = "logguardian-alerts"
+  kms_master_key_id = "alias/aws/sns" # AWS-managed key
 }
 
 resource "aws_sns_topic_subscription" "email" {

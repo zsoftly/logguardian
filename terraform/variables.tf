@@ -263,6 +263,21 @@ variable "alarm_sns_topic_arn" {
 }
 
 # ============================================
+# Security & Compliance Configuration
+# ============================================
+
+variable "lambda_code_signing_config_arn" {
+  description = "ARN of Lambda code signing configuration. Ensures only signed, trusted code is deployed - security best practice for production workloads. Create using AWS Signer."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.lambda_code_signing_config_arn == null || can(regex("^arn:(aws|aws-cn|aws-us-gov):lambda:[a-z0-9-]+:[0-9]{12}:code-signing-config:csc-[a-z0-9]+$", var.lambda_code_signing_config_arn))
+    error_message = "Code signing config ARN must be a valid Lambda code signing configuration ARN"
+  }
+}
+
+# ============================================
 # Advanced Configuration
 # ============================================
 
