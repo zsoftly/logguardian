@@ -34,7 +34,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           metrics = [
             ["LogGuardian", "LogGroupsProcessed", { stat = "Sum" }],
             [".", "RemediationSuccess", { stat = "Sum" }],
-            [".", "RemediationFailure", { stat = "Sum" }],
+            [".", "RemediationErrors", { stat = "Sum" }],
             [".", "RateLimitHits", { stat = "Sum" }]
           ]
           view    = "timeSeries"

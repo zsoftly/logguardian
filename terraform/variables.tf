@@ -110,7 +110,7 @@ variable "batch_size" {
 # ============================================
 
 variable "create_kms_key" {
-  description = "Create a new KMS key for CloudWatch Logs encryption"
+  description = "Create a new KMS key for CloudWatch Logs encryption. If false, existing_kms_key_arn must be provided."
   type        = bool
   default     = true
 }
@@ -121,8 +121,8 @@ variable "existing_kms_key_arn" {
   default     = null
 
   validation {
-    condition     = var.existing_kms_key_arn == null || can(regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/[A-Fa-f0-9-]+$", var.existing_kms_key_arn))
-    error_message = "KMS key ARN must be a valid ARN format"
+    condition     = var.existing_kms_key_arn == null || can(regex("^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:[0-9]{12}:key/[A-Fa-f0-9-]+$", var.existing_kms_key_arn))
+    error_message = "KMS key ARN must be a valid ARN format (supports aws, aws-cn, aws-us-gov partitions)"
   }
 }
 
@@ -165,8 +165,8 @@ variable "existing_config_service_role_arn" {
   default     = null
 
   validation {
-    condition     = var.existing_config_service_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/[^/]+$", var.existing_config_service_role_arn))
-    error_message = "Config service role ARN must be a valid IAM role ARN"
+    condition     = var.existing_config_service_role_arn == null || can(regex("^arn:(aws|aws-cn|aws-us-gov):iam::[0-9]{12}:role/[^/]+$", var.existing_config_service_role_arn))
+    error_message = "Config service role ARN must be a valid IAM role ARN (supports aws, aws-cn, aws-us-gov partitions)"
   }
 }
 
@@ -252,13 +252,13 @@ variable "enable_cloudwatch_alarms" {
 }
 
 variable "alarm_sns_topic_arn" {
-  description = "SNS topic ARN for CloudWatch alarms (optional)"
+  description = "SNS topic ARN for CloudWatch alarms and Config remediation notifications (optional)"
   type        = string
   default     = null
 
   validation {
-    condition     = var.alarm_sns_topic_arn == null || can(regex("^arn:aws:sns:[A-Za-z0-9-]+:[0-9]{12}:.*$", var.alarm_sns_topic_arn))
-    error_message = "SNS topic ARN must be a valid ARN format"
+    condition     = var.alarm_sns_topic_arn == null || can(regex("^arn:(aws|aws-cn|aws-us-gov):sns:[A-Za-z0-9-]+:[0-9]{12}:.*$", var.alarm_sns_topic_arn))
+    error_message = "SNS topic ARN must be a valid ARN format (supports aws, aws-cn, aws-us-gov partitions)"
   }
 }
 

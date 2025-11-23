@@ -64,11 +64,6 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_vpc" {
-  role       = local.lambda_role_name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
 # ============================================
 # Lambda Custom Policy
 # ============================================

@@ -40,24 +40,5 @@
 #
 # ============================================
 
-# Validate required configurations
-# ============================================
-
-resource "null_resource" "validate_config" {
-  lifecycle {
-    precondition {
-      condition     = var.create_kms_key || var.existing_kms_key_arn != null
-      error_message = "Either create_kms_key must be true or existing_kms_key_arn must be provided"
-    }
-
-    precondition {
-      condition     = var.create_config_service || (var.existing_config_bucket != null && var.existing_config_service_role_arn != null)
-      error_message = "Either create_config_service must be true or existing Config service resources must be provided"
-    }
-
-    precondition {
-      condition     = var.create_config_rules || (var.existing_encryption_config_rule != null && var.existing_retention_config_rule != null)
-      error_message = "Either create_config_rules must be true or existing Config rule names must be provided"
-    }
-  }
-}
+# Note: Cross-variable validations are implemented in variables.tf
+# using Terraform 1.5+ validation blocks for early failure during planning.

@@ -5,7 +5,7 @@
 
 # Terraform directory
 .terraform/
-.terraform.lock.hcl
+# Note: .terraform.lock.hcl should be committed for reproducible builds
 
 # Terraform variable files (protect secrets)
 terraform.tfvars

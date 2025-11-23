@@ -209,7 +209,7 @@ resource "aws_config_remediation_configuration" "encryption" {
 }
 
 resource "aws_config_remediation_configuration" "retention" {
-  count = var.create_config_rules ? 1 : 0
+  count = var.create_config_rules && var.alarm_sns_topic_arn != null ? 1 : 0
 
   config_rule_name = aws_config_config_rule.retention[0].name
   target_type      = "SSM_DOCUMENT"
@@ -218,11 +218,18 @@ resource "aws_config_remediation_configuration" "retention" {
 
   parameter {
     name         = "AutomationAssumeRole"
-    static_value = local.lambda_role_arn
+    static_value = local.config_role_arn
   }
 
   parameter {
-    name           = "Message"
-    resource_value = "RESOURCE_ID"
+    name         = "TopicArn"
+    static_value = var.alarm_sns_topic_arn
   }
+
+  parameter {
+    name         = "Message"
+    static_value = "AWS Config Alert: Non-compliant CloudWatch Logs retention policy detected."
+  }
+
+  depends_on = [aws_config_config_rule.retention]
 }
