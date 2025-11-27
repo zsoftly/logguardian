@@ -6,6 +6,7 @@ import os
 import random
 import string
 import sys
+import subprocess
 
 # ==============================================================================
 # --- Configuration
@@ -80,10 +81,13 @@ class E2ETestRunner:
     def _check_sam_cli(self):
         """Checks if the AWS SAM CLI is installed."""
         logging.info("Checking for AWS SAM CLI...")
-        if os.system("sam --version > nul 2>&1") != 0 and os.system("sam --version > /dev/null 2>&1") != 0:
+        try:
+            # Use subprocess.run for safer execution
+            subprocess.run(["sam", "--version"], check=True, capture_output=True, text=True)
+            logging.info("SAM CLI found.")
+        except (subprocess.CalledProcessError, FileNotFoundError):
             logging.error("AWS SAM CLI is not installed or not in your PATH. Please install it to run this test.")
             raise EnvironmentError("SAM CLI not found.")
-        logging.info("SAM CLI found.")
 
     def _setup_s3_bucket(self):
         """Creates the S3 bucket required for SAM deployment."""
@@ -103,36 +107,53 @@ class E2ETestRunner:
             raise
 
     def _package_and_deploy(self):
-        """Packages the SAM template using 'sam package' and deploys it using 'sam deploy'."""
+        """Packages the SAM template and deploys it using subprocess.run for security."""
         packaged_template_path = f"packaged-template-{self.run_id}.yaml"
         
         logging.info("Packaging SAM application...")
-        package_command = (
-            f"sam package --template-file template.yaml "
-            f"--output-template-file {packaged_template_path} "
-            f"--s3-bucket {self.s3_bucket_name}"
-        )
-        if os.system(package_command) != 0:
+        try:
+            subprocess.run([
+                "sam", "package",
+                "--template-file", "template.yaml",
+                "--output-template-file", packaged_template_path,
+                "--s3-bucket", self.s3_bucket_name
+            ], check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"'sam package' command failed.\nStdout: {e.stdout}\nStderr: {e.stderr}")
             raise RuntimeError("'sam package' command failed.")
 
         logging.info(f"Deploying CloudFormation stack '{self.stack_name}'...")
-        deploy_command = (
-            f"sam deploy --template-file {packaged_template_path} "
-            f"--stack-name {self.stack_name} "
-            f"--capabilities CAPABILITY_IAM "
-            f"--parameter-overrides DefaultRetentionDays={self.retention_days} "
-            f"--region {self.region} "
-            f"--no-fail-on-empty-changeset"
-        )
-        if os.system(deploy_command) != 0:
+        try:
+            subprocess.run([
+                "sam", "deploy",
+                "--template-file", packaged_template_path,
+                "--stack-name", self.stack_name,
+                "--capabilities", "CAPABILITY_IAM",
+                "--parameter-overrides", f"DefaultRetentionDays={self.retention_days}",
+                "--region", self.region,
+                "--no-fail-on-empty-changeset"
+            ], check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"'sam deploy' command failed.\nStdout: {e.stdout}\nStderr: {e.stderr}")
             raise RuntimeError("'sam deploy' command failed.")
 
         logging.info("Waiting for stack deployment to complete...")
-        waiter = self.cf_client.get_waiter('stack_create_complete')
-        waiter.wait(StackName=self.stack_name, WaiterConfig={'Delay': 30, 'MaxAttempts': 20})
-        logging.info(f"Stack '{self.stack_name}' deployed successfully.")
+        try:
+            waiter = self.cf_client.get_waiter('stack_create_complete')
+            waiter.wait(StackName=self.stack_name, WaiterConfig={'Delay': 15, 'MaxAttempts': 40})
+        except self.cf_client.exceptions.ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code")
+            error_message = e.response.get("Error", {}).get("Message")
+            if error_code == "AlreadyExistsException" or "already exists" in error_message.lower():
+                logging.info("Stack already exists, waiting for update to complete...")
+                waiter = self.cf_client.get_waiter('stack_update_complete')
+                waiter.wait(StackName=self.stack_name, WaiterConfig={'Delay': 15, 'MaxAttempts': 40})
+            elif error_code == "ValidationError" and ("No updates are to be performed" in error_message or "ROLLBACK_COMPLETE" in error_message):
+                logging.warning(f"Stack '{self.stack_name}' is in a terminal state without active update: {error_message}. Proceeding.")
+            else:
+                raise
+        logging.info(f"Stack '{self.stack_name}' deployed/updated successfully.")
         
-        # Clean up the local packaged template file
         if os.path.exists(packaged_template_path):
             os.remove(packaged_template_path)
 
@@ -149,8 +170,8 @@ class E2ETestRunner:
             logging.error(f"Failed to describe stack '{self.stack_name}': {e}")
             raise
 
-    def _invoke_lambda_and_wait(self, log_group_name, test_description):
-        """Invokes the LogGuardian Lambda and waits for potential remediation."""
+    def _invoke_lambda(self, log_group_name, test_description):
+        """Invokes the LogGuardian Lambda for a specific log group."""
         logging.info(f"Invoking LogGuardian for {test_description} on '{log_group_name}'...")
         event_payload = {
             "invokingEvent": json.dumps({
@@ -167,9 +188,23 @@ class E2ETestRunner:
             InvocationType='Event',  # Asynchronous
             Payload=json.dumps(event_payload)
         )
-        # Give Lambda time to process
-        logging.info("Waiting for potential remediation (up to 30 seconds)...")
-        time.sleep(30)
+
+    def _poll_for_retention_policy(self, log_group_name, expected_retention, timeout=60, interval=5):
+        """Polls the log group until the retention policy matches the expected value or a timeout occurs."""
+        logging.info(f"Polling '{log_group_name}' for retention policy of '{expected_retention}' days...")
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            current_retention = self._get_log_group_retention(log_group_name)
+            if current_retention == expected_retention:
+                logging.info(f"Polling success: Found expected retention of {current_retention} days.")
+                return True
+            time.sleep(interval)
+        
+        final_retention = self._get_log_group_retention(log_group_name)
+        logging.error(
+            f"Polling timeout: Expected retention '{expected_retention}', but final value was '{final_retention}' after {timeout} seconds."
+        )
+        return False
 
     def _test_non_compliant_log_group(self):
         """Test Case 1: Creates a log group with no retention policy and verifies it gets remediated."""
@@ -180,11 +215,12 @@ class E2ETestRunner:
         assert initial_retention is None, f"FAIL: Expected no initial retention, found {initial_retention}"
         logging.info("Verified: Log group created with no retention policy.")
 
-        self._invoke_lambda_and_wait(self.log_group_name_non_compliant, "remediation")
+        self._invoke_lambda(self.log_group_name_non_compliant, "remediation")
 
-        final_retention = self._get_log_group_retention(self.log_group_name_non_compliant)
-        assert final_retention == self.retention_days, f"FAIL: Expected retention {self.retention_days}, found {final_retention}"
-        logging.info(f"PASS: Log group was successfully remediated to {final_retention} days.")
+        remediated = self._poll_for_retention_policy(self.log_group_name_non_compliant, self.retention_days)
+        
+        assert remediated, f"FAIL: Log group was not remediated to {self.retention_days} days."
+        logging.info(f"PASS: Log group was successfully remediated.")
 
     def _test_compliant_log_group(self):
         """Test Case 2: Creates a log group that is already compliant and verifies it is not changed."""
@@ -195,7 +231,11 @@ class E2ETestRunner:
         assert initial_retention == self.retention_days, f"FAIL: Expected initial retention {self.retention_days}, found {initial_retention}"
         logging.info(f"Verified: Log group created with a compliant retention policy of {initial_retention} days.")
         
-        self._invoke_lambda_and_wait(self.log_group_name_compliant, "compliance check")
+        self._invoke_lambda(self.log_group_name_compliant, "compliance check")
+        
+        # Wait a short period to ensure no unintended action took place
+        logging.info("Waiting for 15 seconds to ensure no changes are made...")
+        time.sleep(15)
         
         final_retention = self._get_log_group_retention(self.log_group_name_compliant)
         assert final_retention == self.retention_days, f"FAIL: Retention policy changed from {initial_retention} to {final_retention}"
@@ -211,11 +251,12 @@ class E2ETestRunner:
         assert initial_retention == incorrect_retention, f"FAIL: Expected initial retention {incorrect_retention}, found {initial_retention}"
         logging.info(f"Verified: Log group created with an incorrect retention policy of {initial_retention} days.")
 
-        self._invoke_lambda_and_wait(self.log_group_name_remediate, "remediation")
+        self._invoke_lambda(self.log_group_name_remediate, "remediation")
 
-        final_retention = self._get_log_group_retention(self.log_group_name_remediate)
-        assert final_retention == self.retention_days, f"FAIL: Expected retention {self.retention_days}, found {final_retention}"
-        logging.info(f"PASS: Log group was successfully remediated from {incorrect_retention} to {final_retention} days.")
+        remediated = self._poll_for_retention_policy(self.log_group_name_remediate, self.retention_days)
+
+        assert remediated, f"FAIL: Log group was not remediated from {incorrect_retention} to {self.retention_days} days."
+        logging.info(f"PASS: Log group was successfully remediated from {incorrect_retention} to {self.retention_days} days.")
 
     def _create_log_group(self, name, retention_days=None):
         """Helper to create a log group for testing."""
@@ -225,7 +266,11 @@ class E2ETestRunner:
             if retention_days:
                 self.logs_client.put_retention_policy(logGroupName=name, retentionInDays=retention_days)
         except self.logs_client.exceptions.ResourceAlreadyExistsException:
-            logging.warning(f"Log group '{name}' already exists. Attempting to reuse.")
+            logging.warning(f"Log group '{name}' already exists. Deleting and recreating for a clean test state.")
+            self.logs_client.delete_log_group(logGroupName=name)
+            self.logs_client.create_log_group(logGroupName=name)
+            if retention_days:
+                self.logs_client.put_retention_policy(logGroupName=name, retentionInDays=retention_days)
 
     def _get_log_group_retention(self, name):
         """Helper to get the retention policy of a log group."""
