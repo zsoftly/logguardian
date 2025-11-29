@@ -174,16 +174,23 @@ class E2ETestRunner:
             if 'ROLLBACK' in status:
                 logging.error(f"Stack '{self.stack_name}' in {self.region} is in {status} state. Cannot proceed with deployment.")
                 raise RuntimeError(f"Stack in {status} state.")
-            elif 'CREATE_IN_PROGRESS' in status or status == 'REVIEW_IN_PROGRESS':
+            elif status in ('CREATE_IN_PROGRESS', 'REVIEW_IN_PROGRESS'):
                 waiter = self.cf_client.get_waiter('stack_create_complete')
-            else: # UPDATE_IN_PROGRESS, UPDATE_ROLLBACK_COMPLETE, CREATE_COMPLETE, UPDATE_COMPLETE etc.
+            elif status == 'UPDATE_IN_PROGRESS':
+                waiter = self.cf_client.get_waiter('stack_update_complete')
+            elif status in ('CREATE_COMPLETE', 'UPDATE_COMPLETE'):
+                # No changeset was created (no-op deployment)
+                logging.info(f"Stack '{self.stack_name}' is already in {status} state. No deployment needed.")
+                return # Exit function as no waiting is required
+            else:
+                logging.warning(f"Stack '{self.stack_name}' in unexpected state {status}. Attempting update waiter.")
                 waiter = self.cf_client.get_waiter('stack_update_complete')
             
             waiter.wait(StackName=self.stack_name, WaiterConfig={'Delay': 15, 'MaxAttempts': 40})
             logging.info(f"Stack '{self.stack_name}' deployed/updated successfully in {self.region}.")
         except (self.cf_client.exceptions.ClientError, WaiterError) as e:
-            logging.error(f"CloudFormation waiter failed for stack '{self.stack_name}' in {self.region}: {e}")
-            raise RuntimeError(f"CloudFormation deployment failed: {e}")
+            logging.exception(f"CloudFormation waiter failed for stack '{self.stack_name}' in {self.region}.") # Use logging.exception
+            raise RuntimeError(f"CloudFormation deployment failed: {e}") from e # Add from e for B904
         finally:
             if os.path.exists(packaged_template_path):
                 os.remove(packaged_template_path)
