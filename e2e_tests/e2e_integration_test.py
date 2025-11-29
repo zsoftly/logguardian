@@ -8,7 +8,7 @@ import string
 import sys
 import subprocess
 import yaml # Added for reading template.yaml
-from botocore.exceptions import WaiterError # Added for robust error handling
+from botocore.exceptions import WaiterError, ClientError # Added for robust error handling
 
 # ==============================================================================
 # --- Configuration
@@ -31,9 +31,9 @@ def get_default_retention_days_from_template(template_path="template.yaml"):
         with open(template_path, 'r') as f:
             template = yaml.safe_load(f)
         # Assuming DefaultRetentionDays is directly under Parameters
-        return template['Parameters']['DefaultRetentionDays']['Default']
+        return int(template['Parameters']['DefaultRetentionDays']['Default']) # Cast to int
     except Exception as e:
-        logging.error(f"Could not read DefaultRetentionDays from {template_path}: {e}")
+        logging.exception(f"Could not read DefaultRetentionDays from {template_path}. Falling back to default.") # Use logging.exception
         # Fallback to a default if reading fails
         return 14 
 
@@ -96,7 +96,7 @@ class E2ETestRunner:
             logging.info(f"✅ All E2E integration tests passed successfully in region: {self.region}!")
 
         except Exception as e:
-            logging.error(f"❌ An error occurred during the integration test in {self.region}: {e}", exc_info=True)
+            logging.exception(f"❌ An error occurred during the integration test in {self.region}.") # Use logging.exception
             raise # Re-raise the exception to fail the overall run
         finally:
             # --- Cleanup Phase ---
@@ -109,7 +109,7 @@ class E2ETestRunner:
             subprocess.run(["sam", "--version"], check=True, capture_output=True, text=True)
             logging.info("SAM CLI found.")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            logging.error("AWS SAM CLI is not installed or not in your PATH. Please install it to run this test.")
+            logging.exception("AWS SAM CLI is not installed or not in your PATH. Please install it to run this test.") # Use logging.exception
             raise EnvironmentError("SAM CLI not found.")
 
     def _setup_s3_bucket(self):
@@ -125,12 +125,12 @@ class E2ETestRunner:
                 )
             self.s3_client.get_waiter('bucket_exists').wait(Bucket=self.s3_bucket_name)
             logging.info(f"S3 bucket '{self.s3_bucket_name}' created successfully in {self.region}.")
-        except self.s3_client.exceptions.ClientError as e:
+        except ClientError as e: # Use specific ClientError
             if "BucketAlreadyOwnedByYou" in str(e):
                 logging.warning(f"S3 bucket '{self.s3_bucket_name}' already exists and owned by you. Proceeding.")
             else:
-                logging.error(f"Failed to create S3 bucket: {e}")
-                raise
+                logging.exception(f"Failed to create S3 bucket '{self.s3_bucket_name}' in {self.region}.") # Use logging.exception
+                raise # Re-raise for ClientError
 
     def _package_and_deploy(self):
         """Packages the SAM template and deploys it using subprocess.run for security."""
@@ -146,8 +146,8 @@ class E2ETestRunner:
                 "--region", self.region # Specify region for package command
             ], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            logging.error(f"'sam package' command failed in {self.region}.\nStdout: {e.stdout}\nStderr: {e.stderr}")
-            raise RuntimeError("'sam package' command failed.")
+            logging.exception(f"'sam package' command failed in {self.region}.") # Use logging.exception
+            raise RuntimeError(f"'sam package' command failed: {e}") from e # Add from e
 
         logging.info(f"Deploying CloudFormation stack '{self.stack_name}' in {self.region}...")
         try:
@@ -161,8 +161,8 @@ class E2ETestRunner:
                 "--no-fail-on-empty-changeset"
             ], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            logging.error(f"'sam deploy' command failed in {self.region}.\nStdout: {e.stdout}\nStderr: {e.stderr}")
-            raise RuntimeError("'sam deploy' command failed.")
+            logging.exception(f"'sam deploy' command failed in {self.region}.") # Use logging.exception
+            raise RuntimeError(f"'sam deploy' command failed: {e}") from e # Add from e
 
         logging.info(f"Waiting for stack deployment to complete in {self.region}...")
         try:
@@ -188,9 +188,9 @@ class E2ETestRunner:
             
             waiter.wait(StackName=self.stack_name, WaiterConfig={'Delay': 15, 'MaxAttempts': 40})
             logging.info(f"Stack '{self.stack_name}' deployed/updated successfully in {self.region}.")
-        except (self.cf_client.exceptions.ClientError, WaiterError) as e:
-            logging.exception(f"CloudFormation waiter failed for stack '{self.stack_name}' in {self.region}.") # Use logging.exception
-            raise RuntimeError(f"CloudFormation deployment failed: {e}") from e # Add from e for B904
+        except (ClientError, WaiterError) as e: # Use specific ClientError
+            logging.exception(f"CloudFormation waiter failed for stack '{self.stack_name}' in {self.region}.")
+            raise RuntimeError(f"CloudFormation deployment failed: {e}") from e
         finally:
             if os.path.exists(packaged_template_path):
                 os.remove(packaged_template_path)
@@ -204,8 +204,8 @@ class E2ETestRunner:
                 if output["OutputKey"] == "LogGuardianFunction":
                     return output["OutputValue"]
             raise Exception("Could not find Lambda function name in stack outputs.")
-        except self.cf_client.exceptions.ClientError as e:
-            logging.error(f"Failed to describe stack '{self.stack_name}' in {self.region}: {e}")
+        except ClientError as e: # Use specific ClientError
+            logging.exception(f"Failed to describe stack '{self.stack_name}' in {self.region}.") # Use logging.exception
             raise
 
     def _invoke_lambda(self, log_group_name, test_description, payload_override=None):
@@ -268,7 +268,7 @@ class E2ETestRunner:
         self._create_log_group(self.log_group_name_non_compliant)
         
         initial_retention = self._get_log_group_retention(self.log_group_name_non_compliant)
-        assert initial_retention is None, f"FAIL: Expected no initial retention, found {initial_retention}"
+        assert initial_retention is None, "FAIL: Expected no initial retention, found %s" % initial_retention # f-string to %s
         logging.info("Verified: Log group created with no retention policy.")
 
         success, _ = self._invoke_lambda(self.log_group_name_non_compliant, "remediation")
@@ -281,7 +281,7 @@ class E2ETestRunner:
 
     def _test_compliant_log_group(self):
         """Test Case 2: Creates a log group that is already compliant and verifies it is not changed."""
-        logging.info(f"\n--- Test Case 2: Compliant Log Group (Policy Matches) ---")
+        logging.info("\n--- Test Case 2: Compliant Log Group (Policy Matches) ---") # Removed f-prefix
         self._create_log_group(self.log_group_name_compliant, retention_days=self.retention_days)
 
         initial_retention = self._get_log_group_retention(self.log_group_name_compliant)
@@ -302,7 +302,7 @@ class E2ETestRunner:
     def _test_remediation_of_existing_policy(self):
         """Test Case 3: Creates a log group with a non-compliant retention policy and verifies it's updated."""
         incorrect_retention = 3
-        logging.info(f"\n--- Test Case 3: Non-Compliant Log Group (Incorrect Policy) ---")
+        logging.info("\n--- Test Case 3: Non-Compliant Log Group (Incorrect Policy) ---") # Removed f-prefix
         self._create_log_group(self.log_group_name_remediate, retention_days=incorrect_retention)
         
         initial_retention = self._get_log_group_retention(self.log_group_name_remediate)
@@ -393,8 +393,8 @@ class E2ETestRunner:
             if retention_days:
                 self.logs_client.put_retention_policy(logGroupName=name, retentionInDays=retention_days)
             logging.info(f"Log group '{name}' recreated successfully in {self.region}.")
-        except Exception as e:
-            logging.error(f"Failed to create log group '{name}' in {self.region}: {e}")
+        except ClientError as e: # Use specific ClientError
+            logging.exception(f"Failed to create log group '{name}' in {self.region}.") # Use logging.exception
             raise
 
     def _get_log_group_retention(self, name):
@@ -415,19 +415,21 @@ class E2ETestRunner:
         
         # List of log groups to delete
         log_groups_to_delete = [
+            *self.performance_log_groups, # Use unpacking
             self.log_group_name_non_compliant,
             self.log_group_name_compliant,
             self.log_group_name_remediate,
-        ] + self.performance_log_groups # Add performance log groups to cleanup
+        ]
         
         for lg_name in log_groups_to_delete:
             try:
                 logging.info(f"Deleting log group: {lg_name} in {self.region}")
                 self.logs_client.delete_log_group(logGroupName=lg_name)
-            except self.logs_client.exceptions.ResourceNotFoundException:
-                logging.info(f"Log group '{lg_name}' already deleted in {self.region}.")
-            except Exception as e:
-                logging.warning(f"Could not delete log group '{lg_name}' in {self.region}: {e}")
+            except ClientError as e: # Use specific ClientError
+                if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                    logging.info(f"Log group '{lg_name}' already deleted in {self.region}.")
+                else:
+                    logging.exception(f"Could not delete log group '{lg_name}' in {self.region}.") # Use logging.exception
         
         try:
             logging.info(f"Deleting CloudFormation stack: {self.stack_name} in {self.region}")
@@ -435,14 +437,11 @@ class E2ETestRunner:
             waiter = self.cf_client.get_waiter('stack_delete_complete')
             waiter.wait(StackName=self.stack_name, WaiterConfig={'Delay': 30, 'MaxAttempts': 20})
             logging.info(f"Stack deleted successfully in {self.region}.")
-        except self.cf_client.exceptions.ClientError as e:
+        except ClientError as e: # Use specific ClientError
             if "does not exist" in e.response['Error']['Message']:
                 logging.info(f"Stack in {self.region} already deleted.")
             else:
-                logging.warning(f"Could not delete stack '{self.stack_name}' in {self.region}: {e}")
-        except Exception as e:
-            logging.warning(f"Could not delete stack '{self.stack_name}' in {self.region}: {e}")
-
+                logging.exception(f"Could not delete stack '{self.stack_name}' in {self.region}.") # Use logging.exception
 
         try:
             logging.info(f"Deleting S3 bucket: {self.s3_bucket_name} in {self.region}")
@@ -455,8 +454,8 @@ class E2ETestRunner:
                     self.s3_client.delete_object(Bucket=self.s3_bucket_name, Key=marker['Key'], VersionId=marker['VersionId'])
             self.s3_client.delete_bucket(Bucket=self.s3_bucket_name)
             logging.info(f"S3 bucket '{self.s3_bucket_name}' deleted successfully in {self.region}.")
-        except Exception as e:
-            logging.warning(f"Could not delete S3 bucket '{self.s3_bucket_name}' in {self.region}. Please delete it manually. Error: {e}")
+        except ClientError as e: # Use specific ClientError
+            logging.exception(f"Could not delete S3 bucket '{self.s3_bucket_name}' in {self.region}. Please delete it manually.") # Use logging.exception
 
 if __name__ == "__main__":
     
@@ -470,7 +469,7 @@ if __name__ == "__main__":
             )
             runner.run()
         except Exception as e:
-            logging.error(f"❌ Test failed in region {region}: {e}")
+            logging.exception(f"❌ Test failed in region {region}.") # Use logging.exception
             sys.exit(1) # Exit with an error code if any region fails
 
     logging.info("\n=============================================")
