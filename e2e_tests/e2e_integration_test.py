@@ -19,7 +19,7 @@ from botocore.exceptions import WaiterError, ClientError # Added for robust erro
 S3_BUCKET_BASE_NAME = "logguardian-e2e-test-bucket"
 
 # The default AWS Region to run the test in if not specified by env var.
-DEFAULT_REGION = "us-east-1"
+DEFAULT_REGION = "ca-central-1"
 
 # Environment variable to specify a comma-separated list of regions for multi-region testing.
 # Example: E2E_TEST_REGIONS="us-east-1,us-west-2"
