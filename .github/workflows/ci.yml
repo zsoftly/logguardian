@@ -131,7 +131,7 @@ jobs:
           cd build && zip -r ../dist/logguardian-compliance.zip bootstrap
 
       - name: Upload Lambda deployment artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lambda-deployment-package
           path: dist/logguardian-compliance.zip
@@ -233,7 +233,7 @@ jobs:
             ./cmd/container
 
       - name: Upload container binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: container-binary
           path: build/logguardian-container
