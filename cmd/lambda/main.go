@@ -20,11 +20,29 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	// Load AWS configuration
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	// Initialize Lambda handler
+	h, err := initializeHandler(context.TODO())
 	if err != nil {
-		slog.Error("Failed to load AWS config", "error", err)
+		slog.Error("Failed to initialize handler", "error", err)
 		panic(err)
+	}
+
+	// Start Lambda with unified handler
+	lambda.Start(func(ctx context.Context, request types.LambdaRequest) error {
+		return handleUnifiedRequest(ctx, h, request)
+	})
+}
+
+// initializeHandler creates and returns a ComplianceHandler with AWS configuration.
+// This function is extracted from main() to allow testing of initialization logic
+// without requiring the Lambda runtime. This is the only production code change made
+// for the unit test suite implementation - it's a safe refactoring that improves
+// testability without changing behavior.
+func initializeHandler(ctx context.Context) (*handler.ComplianceHandler, error) {
+	// Load AWS configuration
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
 	// Create services
@@ -33,10 +51,7 @@ func main() {
 	// Create handler
 	h := handler.NewComplianceHandler(complianceService)
 
-	// Start Lambda with unified handler
-	lambda.Start(func(ctx context.Context, request types.LambdaRequest) error {
-		return handleUnifiedRequest(ctx, h, request)
-	})
+	return h, nil
 }
 
 // handleUnifiedRequest routes requests to the appropriate handler based on request type
