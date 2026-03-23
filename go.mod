@@ -33,5 +33,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.5
-	github.com/aws/smithy-go v1.24.0
+	github.com/aws/smithy-go v1.24.2
 )
