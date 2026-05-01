@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -43,7 +43,7 @@ jobs:
           cp dist/logguardian-compliance.zip dist/logguardian-compliance-${{ github.ref_name }}.zip
 
       - name: Upload Lambda artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: lambda-package
           path: |
@@ -55,10 +55,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -79,7 +79,7 @@ jobs:
             -C build logguardian-container
 
       - name: Upload container artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: container-binary
           path: |
@@ -98,13 +98,13 @@ jobs:
       attestations: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -112,7 +112,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -123,7 +123,7 @@ jobs:
 
       - name: Build and push Docker image
         id: build_and_push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -137,82 +137,45 @@ jobs:
             COMMIT_SHA=${{ github.sha }}
 
       - name: Generate attestation
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v2
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build_and_push.outputs.digest }}
           push-to-registry: true
 
-  create-release:
+  github-release:
     name: Create GitHub Release
-    needs: [build-lambda, build-container]
+    needs: [build-lambda, build-container, publish-docker]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v5
         with:
-          fetch-depth: 0
+          path: artifacts
 
-      - name: Download Lambda artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: lambda-package
-          path: ./artifacts
-
-      - name: Download container artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: container-binary
-          path: ./artifacts
-
-      - name: Generate checksums
-        run: |
-          cd artifacts
-          sha256sum * > checksums.txt
-          cat checksums.txt
-
-      - name: Prepare release body
-        run: |
-          # Use scripts to handle all release notes preparation
-          # This avoids inline code and delimiter issues
-          NOTES_BASE64=$(./scripts/02_encode_release_notes.sh "${{ github.ref_name }}" "${{ github.repository }}")
-          ./scripts/03_prepare_release_body.sh \
-            "${{ github.ref_name }}" \
-            "${{ github.repository }}" \
-            "$NOTES_BASE64" \
-            "release_body.md"
+      - name: List artifacts
+        run: ls -R artifacts
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: LogGuardian ${{ github.ref_name }}
-          body_path: release_body.md
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           files: |
-            artifacts/logguardian-compliance.zip
-            artifacts/logguardian-compliance-${{ github.ref_name }}.zip
-            artifacts/logguardian-container
-            artifacts/logguardian-container-${{ github.ref_name }}
-            artifacts/logguardian-container-${{ github.ref_name }}.tar.gz
-            artifacts/checksums.txt
-
-      - name: Generate summary
-        run: |
-          echo "## 🎉 Release Published: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Docker Image" >> $GITHUB_STEP_SUMMARY
-          echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository }}:latest" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📄 Release Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Lambda Package: logguardian-compliance-${{ github.ref_name }}.zip" >> $GITHUB_STEP_SUMMARY
-          echo "- Container Binary: logguardian-container-${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-          echo "- [Docker Registry](https://github.com/${{ github.repository }}/pkgs/container/logguardian)" >> $GITHUB_STEP_SUMMARY
-
+            artifacts/lambda-package/*.zip
+            artifacts/container-binary/*.tar.gz
+          body: |
+            # Release ${{ github.ref_name }}
+            
+            LogGuardian Compliance Lambda and Container.
+            
+            ## Docker Image
+            `ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
+            
+            ## Changes
+            See commit history for details.
+          draft: false
+          prerelease: false
